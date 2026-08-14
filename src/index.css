@@ -1,0 +1,185 @@
+/* Common Pot — vintage theme.
+ * Muted sepia and aged-paper tones, an elegant serif hierarchy, light
+ * paper-grain distressing and a few archival details. Keep the Tailwind
+ * directives, the dark-mode custom variant and the token mapping intact. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Typeface pairing with character: Fraunces (soft serif) for display,
+     Archivo (grotesk) for the tool itself. Georgia is the offline fallback. */
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-serif: "Fraunces", "Georgia", "Times New Roman", serif;
+  --font-display: "Fraunces", "Georgia", "Times New Roman", serif;
+}
+
+:root {
+  --radius: 0.3rem;
+  /* Aged parchment + oxblood ink + a brass accent. */
+  --background: #f5edda;
+  --foreground: #382b1d;
+  --card: #fbf4e2;
+  --card-foreground: #382b1d;
+  --popover: #fbf4e2;
+  --popover-foreground: #382b1d;
+  --primary: #8a3a25;
+  --primary-foreground: #f7efdd;
+  --secondary: #e7d9b8;
+  --secondary-foreground: #382b1d;
+  --muted: #ece0c2;
+  --muted-foreground: #7d6a50;
+  --accent: #b78a2e;
+  --accent-foreground: #2c2113;
+  --destructive: #9f2f22;
+  --border: #d9c59c;
+  --input: #d3bf95;
+  --ring: #8a3a25;
+  --chart-1: #8a3a25;
+  --chart-2: #b78a2e;
+  --chart-3: #6f5a35;
+  --chart-4: #a5652c;
+  --chart-5: #4d6b5f;
+  --sidebar: #f0e6cc;
+  --sidebar-foreground: #382b1d;
+  --sidebar-primary: #8a3a25;
+  --sidebar-primary-foreground: #f7efdd;
+  --sidebar-accent: #e7d9b8;
+  --sidebar-accent-foreground: #382b1d;
+  --sidebar-border: #d9c59c;
+  --sidebar-ring: #8a3a25;
+}
+
+/* The night ledger — same book, after dark. */
+.dark {
+  --background: #221a10;
+  --foreground: #e9dcc0;
+  --card: #2b2215;
+  --card-foreground: #e9dcc0;
+  --popover: #2b2215;
+  --popover-foreground: #e9dcc0;
+  --primary: #c96a45;
+  --primary-foreground: #1e160d;
+  --secondary: #3b2f1b;
+  --secondary-foreground: #e9dcc0;
+  --muted: #342a18;
+  --muted-foreground: #ab967a;
+  --accent: #d5a84c;
+  --accent-foreground: #1e160d;
+  --destructive: #e2604a;
+  --border: #493c24;
+  --input: #493c24;
+  --ring: #c96a45;
+  --chart-1: #c96a45;
+  --chart-2: #d5a84c;
+  --chart-3: #ab967a;
+  --chart-4: #a5652c;
+  --chart-5: #6f9b87;
+  --sidebar: #241c11;
+  --sidebar-foreground: #e9dcc0;
+  --sidebar-primary: #c96a45;
+  --sidebar-primary-foreground: #1e160d;
+  --sidebar-accent: #3b2f1b;
+  --sidebar-accent-foreground: #e9dcc0;
+  --sidebar-border: #493c24;
+  --sidebar-ring: #c96a45;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* Light distressing — a film of paper grain over any card. */
+  .paper-texture {
+    position: relative;
+  }
+  .paper-texture::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    mix-blend-mode: multiply;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* A ruled ledger line for the daybook. */
+  .ledger-rule {
+    border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  }
+}
+
+/* Whole-page grain, kept below dialogs (z-50) and toasts. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.34;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}

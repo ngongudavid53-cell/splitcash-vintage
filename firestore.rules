@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function groupDoc(groupId) {
+      return get(/databases/$(database)/documents/groups/$(groupId));
+    }
+
+    function isMemberOf(groupId) {
+      return signedIn() && groupDoc(groupId).data.memberIds.hasAny([request.auth.uid]);
+    }
+
+    // inviteCodes/{code} — the public index that turns a six-letter code into
+    // a group id. Readable by any signed-in member (that's how joining works);
+    // writing one requires being a member of the group it points at.
+    match /inviteCodes/{code} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.groupId is string
+        && request.resource.data.groupId.size() > 0
+        && isMemberOf(request.resource.data.groupId);
+      allow delete: if false;
+    }
+
+    // users/{uid} — public names, private writes. Memberships are stored
+    // denormalized inside groups, so reading any user doc is enough for UIs.
+    // Premium fields (premium, premiumSince, premiumTx) are written by the
+    // owner's own client AFTER the server verifies the Braintree transaction
+    // (POST /api/braintree/entitle in main.ts). For hardened production, move
+    // that write into a Cloud Function triggered by Braintree's webhook so a
+    // user can never self-grant without a real payment.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // groups — invite-code ledgers. Read/join requires membership; members can
+    // only ever be *added* (invites), never silently removed by a member.
+    match /groups/{groupId} {
+      allow read: if signedIn()
+        && resource.data.memberIds.hasAny([request.auth.uid]);
+
+      allow create: if signedIn()
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.memberIds.size() >= 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() == 6;
+
+      // Updates: existing members may edit (never dropping anyone); a
+      // signed-in non-member may join by adding exactly one new member —
+      // themselves.
+      allow update: if signedIn()
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && (
+          resource.data.memberIds.hasAny([request.auth.uid])
+          || (
+            request.resource.data.memberIds.size()
+              == resource.data.memberIds.size() + 1
+            && request.resource.data.memberIds.hasAny([request.auth.uid])
+          )
+        )
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() == 6;
+
+      allow delete: if signedIn()
+        && resource.data.createdBy == request.auth.uid;
+
+      // expenses subcollection. Reads are open to any signed-in user who knows
+      // the ledger — the invite code is the key — so everyone sees the whole
+      // daybook, including rows logged before they joined. (Rules that call
+      // get() also can't authorize list queries, which is what the daybook is.)
+      // Writes stay gated on membership.
+      match /expenses/{expenseId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && isMemberOf(groupId)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.paidBy is string
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
+          && request.resource.data.splitBetween is list
+          && request.resource.data.splitBetween.size() >= 1
+          && request.resource.data.splitBetween.all(
+               uid, uid is string && groupDoc(groupId).data.memberIds.hasAny([uid]));
+        allow update: if signedIn() && isMemberOf(groupId);
+        allow delete: if signedIn() && isMemberOf(groupId);
+      }
+
+      // settlements subcollection — "X paid Y" records, one per pair
+      // (idempotent id). Same read model as expenses.
+      match /settlements/{settlementId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && isMemberOf(groupId)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.from is string
+          && request.resource.data.to is string
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.from])
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to]);
+        allow update: if false;
+        allow delete: if signedIn() && isMemberOf(groupId);
+      }
+    }
+  }
+}

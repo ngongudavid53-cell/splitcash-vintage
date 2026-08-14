@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "hono": "npm:hono@^4.10.7",
+    "hono/": "npm:hono@^4.10.7/",
+    "@google/generative-ai": "npm:@google/generative-ai@^0.24.1",
+    "braintree": "npm:braintree@^3.38.0",
+    "stripe": "npm:stripe@^17.12.0"
+  }
+}
