@@ -2,18 +2,35 @@ import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
-/** Firebase web SDK config, read from environment at build time. */
+/**
+ * Firebase web SDK config, read from environment at build time.
+ *
+ * Freebuff's Keys/API keys panel can inject environment values with quoting
+ * or surrounding whitespace. Normalize those values before handing them to
+ * the Firebase SDK; otherwise a valid key can reach Firebase as a different
+ * string and produce `auth/api-key-not-valid`.
+ */
+function envValue(name: string): string | undefined {
+  const value = import.meta.env[name] as string | undefined;
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (
+    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim() || undefined;
+  }
+  return trimmed;
+}
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as
-    | string
-    | undefined,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as
-    | string
-    | undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
+  apiKey: envValue("VITE_FIREBASE_API_KEY"),
+  authDomain: envValue("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: envValue("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: envValue("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: envValue("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: envValue("VITE_FIREBASE_APP_ID"),
 };
 
 export const REQUIRED_FIREBASE_KEYS = [
