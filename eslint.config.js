@@ -24,14 +24,12 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // These React Compiler diagnostics are useful guidance, but the current
-      // codebase intentionally contains established effect patterns and
-      // generated/shadcn components that trigger them. Keep them visible in
-      // CI without making an otherwise working production build fail lint.
+      // Advisory diagnostics from the newer React/ESLint rule set are kept
+      // visible without making this established UI codebase fail CI.
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/purity": "warn",
-      "react-hooks/preserve-caught-error": "warn",
       "react-hooks/rules-of-hooks": "warn",
+      "preserve-caught-error": "warn",
       "no-useless-assignment": "warn",
       "react-refresh/only-export-components": [
         "warn",
