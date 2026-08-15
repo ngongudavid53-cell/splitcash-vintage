@@ -26,10 +26,10 @@ settle up. No fees, no card-linking, just arithmetic.
 The package manager is **npm** (Bun is not used in this project).
 
 ```bash
-npm install
-npm run dev
-npm test
-npx tsc -b
+npm install      # first time only (node_modules ships pre-installed here)
+npm run dev      # start the Vite dev server
+npm test         # run all three smoke suites (logic + stripe + braintree)
+npx tsc -b       # typecheck
 ```
 
 ## Firebase setup (required for the app to work)
@@ -57,6 +57,9 @@ it just needs your project's web SDK config.
 
 5. Refresh — the pot fills itself.
 
+See `src/components/SetupNotice.tsx` for the same checklist rendered in the
+app when the keys are missing.
+
 ## Monetization — what's wired up
 
 Everything degrades gracefully: if a service isn't configured, its panel shows
@@ -70,9 +73,9 @@ exactly which key to add where instead of breaking.
 | **Ads (Gravity)** | inside the chat panel | `GRAVITY_API_KEY` (Keys tab); test ads by default | Yes — the app's Convex backend |
 | **Tip jar (Braintree, legacy)** | optional second tip channel | `BRAINTREE_MERCHANT_ID/PUBLIC_KEY/PRIVATE_KEY` | Only if you deploy `main.ts` |
 
-Production builds keep Gemini and Gravity credentials server-side. Do not put
-those provider secrets in `VITE_*` variables, because Vite embeds `VITE_*`
-values into the browser bundle.
+Client-side-only fallbacks (`VITE_GEMINI_API_KEY`, `VITE_GRAVITY_API_KEY`,
+`VITE_GRAVITY_FUNCTION_URL`) exist for previews without the backend — see
+`.env.example` for the full key reference.
 
 ## Backend keys — no server to deploy
 
