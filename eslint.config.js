@@ -24,13 +24,14 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // Advisory diagnostics from the newer React/ESLint rule set are kept
-      // visible without making this established UI codebase fail CI.
+      // Keep advisory diagnostics visible without making established UI and
+      // generated components block a production build.
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/purity": "warn",
       "react-hooks/rules-of-hooks": "warn",
       "preserve-caught-error": "warn",
       "no-useless-assignment": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
