@@ -72,7 +72,7 @@ export const config = httpAction(async () => {
 
 export const statsHandler = httpAction(async () => json(stats));
 
-const ASSISTANT_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const ASSISTANT_MODELS = ["gemini-3.6-flash"];
 
 const ASSISTANT_SYSTEM = (brief: string) =>
   [
