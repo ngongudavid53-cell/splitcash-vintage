@@ -5,11 +5,7 @@
  * here as process.env on the server side only.
  */
 
-"use node";
-
 import { httpAction } from "./_generated/server";
-import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
-
 const PREMIUM_PRICE = "4.99";
 const PREMIUM_CENTS = 499;
 
@@ -92,69 +88,124 @@ const ASSISTANT_SYSTEM = (brief: string) =>
 export const assistant = httpAction(async (_ctx, request) => {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return json({ error: "assistant_not_configured" }, 503);
+
   if (rateLimited(clientKey(request))) {
     stats.assistant.rateLimited++;
     return json({ error: "rate_limited" }, 429);
   }
+
   stats.assistant.requests++;
 
   const body = (await request.json().catch(() => null)) as {
     messages?: { role?: string; parts?: { text?: string }[] }[];
     brief?: unknown;
   } | null;
+
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     stats.assistant.errors++;
     return json({ error: "bad_request" }, 400);
   }
 
   const contents = body.messages.slice(-30).map((m) => ({
-    role: m.role === "model" ? ("model" as const) : ("user" as const),
+    role: m.role === "model" ? "model" : "user",
     parts: [{ text: String(m.parts?.[0]?.text ?? "").slice(0, 20000) }],
   }));
+
   const brief = String(body.brief ?? "").slice(0, 12000);
-  const genAI = new GoogleGenerativeAI(key);
   const systemInstruction = ASSISTANT_SYSTEM(brief);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
+
       const sse = (event: string | undefined, data: string) => {
         const frame = event
           ? `event: ${event}\ndata: ${data}\n\n`
           : `data: ${data}\n\n`;
         controller.enqueue(encoder.encode(frame));
       };
+
       try {
         let lastError: unknown = null;
         let started = false;
+
         for (const model of ASSISTANT_MODELS) {
           if (started) break;
+
           try {
-            const gemini = genAI.getGenerativeModel({ model, systemInstruction });
-            const result = await gemini.generateContentStream({ contents: contents as Content[] });
-            for await (const chunk of result.stream) {
-              let text = "";
-              try {
-                text = chunk.text();
-              } catch {
-                // Skip blocked chunks.
-              }
-              if (!text) continue;
-              started = true;
-              stats.assistant.models[model] = (stats.assistant.models[model] ?? 0) + 1;
-              stats.assistant.chunks++;
-              sse(undefined, JSON.stringify({ text }));
+            const url =
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent` +
+              `?alt=sse&key=${encodeURIComponent(key)}`;
+
+            const response = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{ text: systemInstruction }],
+                },
+                contents,
+              }),
+            });
+
+            if (!response.ok || !response.body) {
+              const errorText = await response.text().catch(() => "");
+              throw new Error(
+                `Gemini ${response.status}: ${errorText.slice(0, 1000)}`
+              );
             }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+
+              const lines = buffer.split(/\r?\n/);
+              buffer = lines.pop() ?? "";
+
+              for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+
+                const raw = line.slice(5).trim();
+                if (!raw || raw === "[DONE]") continue;
+
+                try {
+                  const chunk = JSON.parse(raw);
+                  const text =
+                    chunk?.candidates?.[0]?.content?.parts
+                      ?.map((part: { text?: string }) => part.text ?? "")
+                      .join("") ?? "";
+
+                  if (!text) continue;
+
+                  started = true;
+                  stats.assistant.models[model] =
+                    (stats.assistant.models[model] ?? 0) + 1;
+                  stats.assistant.chunks++;
+                  sse(undefined, JSON.stringify({ text }));
+                } catch {
+                  // Ignore malformed SSE frames.
+                }
+              }
+            }
+
             lastError = null;
             break;
           } catch (err) {
             lastError = err;
           }
         }
+
         if (lastError && !started) {
           stats.assistant.errors++;
           sse("error", JSON.stringify({ message: String(lastError) }));
         }
+
         sse("done", "{}");
       } finally {
         controller.close();
