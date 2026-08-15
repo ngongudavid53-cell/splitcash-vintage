@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 import { useCallback, useMemo, useState } from "react";
 import { buildLedgerBrief } from "@/lib/assistant";
 import { apiBase, fetchServerConfig } from "@/lib/server";
@@ -9,34 +8,11 @@ export interface ChatMessage {
   text: string;
 }
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-/** Newest first; we fall back to an older model if one is unavailable. */
-const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
-
 const BLANK_REPLY = "The keeper drew a blank — try asking in a different way.";
 
-const ASSISTANT_SYSTEM = (brief: string) =>
-  [
-    "You are the keeper of the books for Common Pot, a shared expense ledger.",
-    "Answer questions about THIS ledger. Be warm, brief and plain — no lectures.",
-    "Use ONLY the numbers and entries given below. Never invent expenses, people, or amounts.",
-    "If a question goes beyond the ledger, say in one line that it's outside the books.",
-    "Keep money in the same format as the brief.",
-    "THE LEDGER:",
-    brief,
-  ].join("\n");
+const isAssistantConfigured = (): boolean => false;
+export { isAssistantConfigured };
 
-/** True when a client-side key exists — the fallback path for previews without
- *  the backend proxy. The proxy (server-side key) is detected separately via
- *  the backend config. */
-export function isAssistantConfigured(): boolean {
-  return Boolean(API_KEY);
-}
-
-/** Stream an answer through the app's own backend (/api/assistant on the
- *  Convex till), which holds the Gemini key. Yields cumulative text via
- *  onChunk; throws on transport/status errors so the caller can fall back to
- *  the direct path. */
 async function streamViaProxy(
   history: ChatMessage[],
   brief: string,
@@ -90,50 +66,6 @@ async function streamViaProxy(
   return acc;
 }
 
-/** Stream straight to Gemini from the browser (client key). Same chunk
- *  contract, with model fallback for unavailable models. */
-async function streamViaGemini(
-  history: ChatMessage[],
-  brief: string,
-  onChunk: (full: string) => void,
-): Promise<string> {
-  if (!API_KEY) throw new Error("no_gemini_key");
-  const genAI = new GoogleGenerativeAI(API_KEY);
-  const contents: Content[] = history.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.text }],
-  }));
-  const systemInstruction = ASSISTANT_SYSTEM(brief);
-
-  let lastError: unknown = null;
-  let acc = "";
-  let started = false;
-  for (const model of MODELS) {
-    // Never switch models mid-stream — a partial reply stays visible.
-    if (started) break;
-    try {
-      const gemini = genAI.getGenerativeModel({ model, systemInstruction });
-      const result = await gemini.generateContentStream({ contents });
-      for await (const chunk of result.stream) {
-        try {
-          acc += chunk.text();
-        } catch {
-          // A blocked chunk — skip it rather than failing the turn.
-        }
-        if (!acc) continue;
-        started = true;
-        onChunk(acc);
-      }
-      lastError = null;
-      break;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  if (lastError && !started) throw lastError;
-  return acc;
-}
-
 export function useLedgerAssistant(
   group: Group | undefined,
   expenses: Expense[],
@@ -141,7 +73,6 @@ export function useLedgerAssistant(
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
-  /** True while a partial assistant reply is being typed out on screen. */
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +99,6 @@ export function useLedgerAssistant(
           setStreaming(true);
           setMessages((prev) => [...prev, { role: "assistant", text: full }]);
         } else {
-          // Patch the live bubble in place as the reply grows.
           setMessages((prev) => {
             const next = prev.slice();
             next[next.length - 1] = { role: "assistant", text: full };
@@ -178,30 +108,11 @@ export function useLedgerAssistant(
       };
 
       try {
-        let lastError: unknown = null;
         const config = await fetchServerConfig();
-
-        // Preferred path: the app's own backend (key stays server-side).
-        if (config.assistant) {
-          try {
-            acc = await streamViaProxy(history, brief, onChunk);
-            lastError = null;
-          } catch (err) {
-            lastError = err;
-          }
+        if (!config.assistant) {
+          throw new Error("assistant_not_configured");
         }
-
-        // Fallback: direct browser call with a client key (preview/dev).
-        if (!started && API_KEY) {
-          try {
-            acc = await streamViaGemini(history, brief, onChunk);
-            lastError = null;
-          } catch (err) {
-            lastError = err;
-          }
-        }
-
-        if (lastError && !started) throw lastError;
+        acc = await streamViaProxy(history, brief, onChunk);
 
         const reply = acc.trim();
         setMessages((prev) => {
@@ -219,8 +130,8 @@ export function useLedgerAssistant(
       } catch (err) {
         const msg = err instanceof Error ? err.message : "";
         setError(
-          /proxy_error_|no_gemini_key/.test(msg)
-            ? "The keeper couldn't reach the bookshelf. Set GEMINI_API_KEY in the project's Keys tab, or add VITE_GEMINI_API_KEY for a client-side trial."
+          msg === "assistant_not_configured" || msg.startsWith("proxy_error_")
+            ? "The keeper couldn't reach the bookshelf. Set GEMINI_API_KEY in the project's Keys tab, then refresh."
             : err instanceof Error
               ? err.message
               : "The keeper nodded off. Try again in a moment.",
