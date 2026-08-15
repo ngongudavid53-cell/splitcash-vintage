@@ -69,5 +69,15 @@ export function usePremium(
  *  this is called. */
 export async function grantPremium(uid: string, txId: string): Promise<void> {
   if (!isFirebaseConfigured) {
-
-[FILE_TOO_LARGE]: The combined read_files output exceeded the 100,000 character hard limit. This file was truncated after 2,355 characters. Read it separately or use code_search for the relevant section.
+    throw new Error("Firebase isn't configured yet.");
+  }
+  await setDoc(
+    doc(getDb(), "users", uid),
+    {
+      premium: true,
+      premiumTx: txId,
+      premiumSince: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}

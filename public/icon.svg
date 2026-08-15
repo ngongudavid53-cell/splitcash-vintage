@@ -1,1 +1,15 @@
-[FILE_TOO_LARGE]: The combined read_files output exceeded the 100,000 character hard limit. This file was truncated after 0 characters. Read it separately or use code_search for the relevant section.
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="92" fill="#f5edda"/>
+  <rect width="512" height="512" rx="92" fill="none" stroke="#382b1d" stroke-opacity="0.18" stroke-width="14"/>
+  <g fill="none" stroke="#382b1d" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M138 214c9-72 92-122 118-122s109 50 118 122"/>
+    <path d="M138 214c0 118 98 190 118 190s118-72 118-190"/>
+    <path d="M96 214h320"/>
+  </g>
+  <g fill="#8a3a25">
+    <circle cx="198" cy="300" r="17"/>
+    <circle cx="256" cy="330" r="17"/>
+    <circle cx="314" cy="300" r="17"/>
+  </g>
+  <path d="M96 214h320" stroke="#382b1d" stroke-width="10" stroke-linecap="round" opacity="0.35"/>
+</svg>
