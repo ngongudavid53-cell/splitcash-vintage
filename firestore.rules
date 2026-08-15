@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function groupExists(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId));
+    }
+
+    function isMember(groupId) {
+      return signedIn()
+        && groupExists(groupId)
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds.hasAny([request.auth.uid]);
+    }
+
+    function groupMember(groupId, uid) {
+      return groupExists(groupId)
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds.hasAny([uid]);
+    }
+
+    // Invite-code lookup is intentionally readable to authenticated users so a
+    // member can join a ledger without exposing the group's expense data.
+    match /inviteCodes/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['groupId'])
+        && request.resource.data.groupId is string
+        && isMember(request.resource.data.groupId);
+      allow update, delete: if false;
+    }
+
+    // User profiles are user-owned. Premium entitlement fields are server-
+    // owned and therefore may never be created or changed by the browser.
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && !request.resource.data.keys().hasAny(['premium', 'premiumSince', 'premiumTx']);
+      allow update: if isSelf(uid)
+        && request.resource.data.premium == resource.data.premium
+        && request.resource.data.premiumSince == resource.data.premiumSince
+        && request.resource.data.premiumTx == resource.data.premiumTx;
+      allow delete: if false;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isMember(groupId);
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'name', 'inviteCode', 'members', 'memberIds', 'createdBy', 'createdAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() == 6
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.memberIds.size() >= 1;
+
+      // A member cannot mutate the group from the client. Joining is the one
+      // non-member mutation allowed: add exactly one new member, themselves.
+      allow update: if signedIn()
+        && !isMember(groupId)
+        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberIds']);
+
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      match /expenses/{expenseId} {
+        allow read: if isMember(groupId);
+
+        allow create: if isMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.paidBy is string
+          && groupMember(groupId, request.resource.data.paidBy)
+          && request.resource.data.splitBetween is list
+          && request.resource.data.splitBetween.size() > 0;
+
+        allow update: if isMember(groupId)
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.paidBy is string
+          && groupMember(groupId, request.resource.data.paidBy)
+          && request.resource.data.splitBetween is list
+          && request.resource.data.splitBetween.size() > 0;
+
+        allow delete: if isMember(groupId);
+      }
+
+      match /settlements/{settlementId} {
+        allow read: if isMember(groupId);
+
+        allow create: if isMember(groupId)
+          && request.resource.data.settledBy == request.auth.uid
+          && request.resource.data.from is string
+          && request.resource.data.to is string
+          && request.resource.data.from != request.resource.data.to
+          && groupMember(groupId, request.resource.data.from)
+          && groupMember(groupId, request.resource.data.to)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0;
+
+        allow update: if false;
+        allow delete: if isMember(groupId);
+      }
+    }
+  }
+}
