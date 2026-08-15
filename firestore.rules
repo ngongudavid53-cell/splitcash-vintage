@@ -26,22 +26,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // users/{uid} — public names, private writes. Memberships are stored
-    // denormalized inside groups, so reading any user doc is enough for UIs.
-    // Premium fields (premium, premiumSince, premiumTx) are written by the
-    // owner's own client AFTER the server verifies the Braintree transaction
-    // (POST /api/braintree/entitle in main.ts). For hardened production, move
-    // that write into a Cloud Function triggered by Braintree's webhook so a
-    // user can never self-grant without a real payment.
+    // users/{uid} — profile data is user-owned, but premium entitlement is
+    // server-owned. A client must never be able to create or modify premium
+    // fields directly; payment fulfillment should write those fields from a
+    // trusted server/webhook.
     match /users/{uid} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['premium', 'premiumSince', 'premiumTx']);
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.premium == resource.data.premium
+        && request.resource.data.premiumSince == resource.data.premiumSince
+        && request.resource.data.premiumTx == resource.data.premiumTx;
       allow delete: if false;
     }
 
     // groups — invite-code ledgers. Read/join requires membership; members can
-    // only ever be *added* (invites), never silently removed by a member.
+    // only ever be added (invites), never silently removed by a member.
     match /groups/{groupId} {
       allow read: if signedIn()
         && resource.data.memberIds.hasAny([request.auth.uid]);
@@ -75,13 +78,11 @@ service cloud.firestore {
       allow delete: if signedIn()
         && resource.data.createdBy == request.auth.uid;
 
-      // expenses subcollection. Reads are open to any signed-in user who knows
-      // the ledger — the invite code is the key — so everyone sees the whole
-      // daybook, including rows logged before they joined. (Rules that call
-      // get() also can't authorize list queries, which is what the daybook is.)
-      // Writes stay gated on membership.
+      // Expenses and settlements contain the ledger's financial data. Reads
+      // must be restricted to actual members; knowing a group path must not be
+      // enough to read another group's history.
       match /expenses/{expenseId} {
-        allow read: if signedIn();
+        allow read: if isMemberOf(groupId);
         allow create: if signedIn()
           && isMemberOf(groupId)
           && request.resource.data.amount is number
@@ -94,14 +95,12 @@ service cloud.firestore {
           && request.resource.data.splitBetween.size() >= 1
           && request.resource.data.splitBetween.all(
                uid, uid is string && groupDoc(groupId).data.memberIds.hasAny([uid]));
-        allow update: if signedIn() && isMemberOf(groupId);
-        allow delete: if signedIn() && isMemberOf(groupId);
+        allow update: if isMemberOf(groupId);
+        allow delete: if isMemberOf(groupId);
       }
 
-      // settlements subcollection — "X paid Y" records, one per pair
-      // (idempotent id). Same read model as expenses.
       match /settlements/{settlementId} {
-        allow read: if signedIn();
+        allow read: if isMemberOf(groupId);
         allow create: if signedIn()
           && isMemberOf(groupId)
           && request.resource.data.amount is number
@@ -111,7 +110,7 @@ service cloud.firestore {
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.from])
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to]);
         allow update: if false;
-        allow delete: if signedIn() && isMemberOf(groupId);
+        allow delete: if isMemberOf(groupId);
       }
     }
   }
