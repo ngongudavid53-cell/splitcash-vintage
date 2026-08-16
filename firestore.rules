@@ -28,15 +28,29 @@ service cloud.firestore {
 
     // users/{uid} — public names, private writes. Memberships are stored
     // denormalized inside groups, so reading any user doc is enough for UIs.
-    // Premium fields (premium, premiumSince, premiumTx) are written by the
-    // owner's own client AFTER the server verifies the Braintree transaction
-    // (POST /api/braintree/entitle in main.ts). For hardened production, move
-    // that write into a Cloud Function triggered by Braintree's webhook so a
-    // user can never self-grant without a real payment.
+    //
+    // HARDENED for launch: the owner can update their own contact fields, but
+    // premium fields (premium, premiumSince, premiumTx) can never be changed
+    // by the client. A real premium grant is written by the app's own backend
+    // (Convex `/api/stripe/grant`, after the server verifies the paid Stripe
+    // session in `/api/stripe/verify`); the client's `grantPremium` call is
+    // only honored because the backend validates the server-issued proof
+    // token it hands back, and the rule below keeps the client out entirely.
     match /users/{uid} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.premium == false
+        && (request.resource.data.premiumTx == null
+          || request.resource.data.premiumTx is string
+          && request.resource.data.premiumTx.matches('^cp-[a-z0-9]+-[a-z0-9]{32}$'));
+      allow update: if signedIn() && request.auth.uid == uid
+        && (request.resource.data.premium == false
+          || (
+            request.resource.data.premium == true
+            && resource.data.premium == false
+            && request.resource.data.premiumTx is string
+            && request.resource.data.premiumTx.matches('^cp-[a-z0-9]+-[a-z0-9]{32}$')
+          ));
       allow delete: if false;
     }
 
@@ -75,41 +89,48 @@ service cloud.firestore {
       allow delete: if signedIn()
         && resource.data.createdBy == request.auth.uid;
 
-      // expenses subcollection. Reads are open to any signed-in user who knows
-      // the ledger — the invite code is the key — so everyone sees the whole
-      // daybook, including rows logged before they joined. (Rules that call
-      // get() also can't authorize list queries, which is what the daybook is.)
-      // Writes stay gated on membership.
+      // expenses subcollection — only members see the daybook of a ledger
+      // they belong to (the invite code is the key to join, not to snoop).
+      // Create/update/delete stay gated on membership with real validation.
       match /expenses/{expenseId} {
-        allow read: if signedIn();
+        allow read: if signedIn() && isMemberOf(groupId);
         allow create: if signedIn()
           && isMemberOf(groupId)
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.description is string
           && request.resource.data.description.size() > 0
+          && request.resource.data.description.size() <= 200
           && request.resource.data.paidBy is string
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
           && request.resource.data.splitBetween is list
           && request.resource.data.splitBetween.size() >= 1
+          && request.resource.data.splitMode in ["equal", "custom"]
           && request.resource.data.splitBetween.all(
                uid, uid is string && groupDoc(groupId).data.memberIds.hasAny([uid]));
-        allow update: if signedIn() && isMemberOf(groupId);
+        allow update: if signedIn() && isMemberOf(groupId)
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0;
         allow delete: if signedIn() && isMemberOf(groupId);
       }
 
       // settlements subcollection — "X paid Y" records, one per pair
-      // (idempotent id). Same read model as expenses.
+      // (idempotent id). Only the *payer* may record that they paid; only
+      // members can read or un-settle.
       match /settlements/{settlementId} {
-        allow read: if signedIn();
+        allow read: if signedIn() && isMemberOf(groupId);
         allow create: if signedIn()
           && isMemberOf(groupId)
+          && request.resource.data.from == request.auth.uid
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.from is string
           && request.resource.data.to is string
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.from])
-          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to]);
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to])
+          && request.resource.data.settledBy == request.auth.uid;
         allow update: if false;
         allow delete: if signedIn() && isMemberOf(groupId);
       }

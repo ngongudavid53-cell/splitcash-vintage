@@ -236,6 +236,7 @@ interface StripeSession {
   payment_status?: string;
   amount_total?: number | null;
   metadata?: Record<string, string>;
+  created?: number; // epoch seconds (Stripe session timestamps)
   error?: { message?: string };
 }
 
@@ -345,5 +346,88 @@ export const stripeVerify = httpAction(async (_ctx, request) => {
     });
   } catch (err) {
     return json({ success: false, error: `Couldn't verify that payment: ${err}` }, 500);
+  }
+});
+
+// --- /api/stripe/grant: issues the proof token for a paid premium session ---
+
+/** Verified sessions, keyed by Stripe session id. `granted: true` once a
+ *  token has been handed out for that session (one token per payment).
+ *  In-memory on purpose: the client re-verifies on demand, so a restart
+ *  just makes it ask again. */
+const verifiedSessions = new Map<
+  string,
+  { amount: string; paidAt: number; granted: boolean; token?: string }
+>();
+
+function randomTokenPart(bytes = 16): string {
+  const buf = new Uint8Array(bytes);
+  crypto.getRandomValues(buf);
+  return Array.from(buf)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 32);
+}
+
+/**
+ * POST /api/stripe/grant — the server-side step in the premium grant flow.
+ *
+ * The client can no longer set `premium: true` on its own user document —
+ * the Firestore rule hard-gates that field behind a server-issued proof
+ * token (prefix `cp-`, random 32-char suffix). This endpoint re-verifies
+ * the paid Stripe session (so the server, not the client, is the source of
+ * truth), marks the session granted, and returns the token the hardened
+ * rule will accept.
+ *
+ * Body: { sessionId: string; uid: string }
+ */
+export const stripeGrant = httpAction(async (_ctx, request) => {
+  if (!stripeSecret()) {
+    return json(
+      { success: false, error: "Stripe is not configured on the server yet." },
+      503,
+    );
+  }
+  try {
+    const body = (await request.json().catch(() => null)) as {
+      sessionId?: unknown;
+      uid?: unknown;
+    } | null;
+    const sessionId = String(body?.sessionId ?? "").trim();
+    const uid = String(body?.uid ?? "").trim();
+    if (!sessionId || !uid || uid.length < 5) {
+      return json(
+        { success: false, error: "A session id and a user id are required." },
+        400,
+      );
+    }
+
+    // Re-verify against Stripe every time — this endpoint is the moment of
+    // truth, not the earlier /verify call the client may have cached.
+    const data = await stripeFetch(`/checkout/sessions/${encodeURIComponent(sessionId)}`);
+    const paid = data.payment_status === "paid";
+    const rightPrice = data.amount_total === PREMIUM_CENTS;
+    const rightProduct = data.metadata?.product === "premium";
+    if (!paid || !rightPrice || !rightProduct) {
+      stats.stripe.failed++;
+      return json({
+        success: false,
+        error: "That payment wasn't for the premium ledger.",
+      });
+    }
+
+    const record = verifiedSessions.get(sessionId);
+    const token =
+      record?.granted && record.token ? record.token : `cp-${sessionId}-${randomTokenPart()}`;
+    verifiedSessions.set(sessionId, {
+      amount: ((data.amount_total ?? 0) / 100).toFixed(2),
+      paidAt: data.created ? data.created * 1000 : Date.now(),
+      granted: true,
+      token,
+    });
+
+    return json({ success: true, token, transactionId: data.id });
+  } catch (err) {
+    return json({ success: false, error: `Couldn't grant premium: ${err}` }, 500);
   }
 });

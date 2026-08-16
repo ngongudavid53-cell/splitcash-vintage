@@ -83,7 +83,8 @@ The paid integrations run as **HTTP actions inside this project's Convex
 deployment** (`src/convex/till.ts`, routed in `src/convex/http.ts`):
 `GET /api/config` (what's wired), `GET /api/stats`, `POST /api/assistant`
 (Gemini, streamed over SSE), `POST /api/ad` (Gravity), `POST
-/api/stripe/checkout` + `POST /api/stripe/verify` (premium purchases).
+/api/stripe/checkout` + `POST /api/stripe/verify` + `POST /api/stripe/grant`
+(premium purchases).
 
 To go live, paste these into the project's **Keys / API keys** tab — the
 frontend auto-detects them via `/api/config`:
@@ -98,6 +99,12 @@ GRAVITY_API_KEY
 - No Deno Deploy, no GitHub repo, no separate server. The keys arrive
   server-side only (`process.env` in the Convex node runtime) and never reach
   the browser bundle.
+- **Premium entitlement flow** — the client can never grant itself premium.
+  After Stripe returns the user, the client calls `/api/stripe/grant`, which
+  re-verifies the paid session server-side and returns a server-issued proof
+  token (`cp-...`). The `users` rules in `firestore.rules` only accept
+  `premium: true` when `premiumTx` matches that token format, so a paid
+  purchase is what unlocks export — nothing the browser writes on its own.
 - The client finds the backend automatically: it uses the Convex site URL
   (explicit `VITE_CONVEX_SITE_URL`, or derived from the deployment's
   `VITE_CONVEX_URL`), then falls back to a legacy `VITE_API_URL` if you've

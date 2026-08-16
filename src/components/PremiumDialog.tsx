@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/lib/money";
+import { apiBase } from "@/lib/server";
 import {
   StripeSetupError,
   createStripeCheckout,
@@ -82,7 +83,7 @@ export function PremiumDialog({
         }
         if (uid) {
           try {
-            await grantPremium(uid, res.transactionId ?? pendingSession);
+            await grantPremium(uid, pendingSession, apiBase());
           } catch {
             // The money moved; only the record failed. Surface it clearly.
             setPhase("idle");

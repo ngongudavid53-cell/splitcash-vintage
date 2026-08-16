@@ -79,9 +79,11 @@ export default function GroupView() {
 
   const total = useMemo(() => potTotal(expensesSafe), [expensesSafe]);
   const balances = useMemo(
-    () => computeBalances(group ?? ({} as never), expensesSafe),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [group, expensesSafe],
+    () =>
+      group
+        ? computeBalances(group, expensesSafe, settlementsSafe)
+        : new Map<string, number>(),
+    [group, expensesSafe, settlementsSafe],
   );
   const outstanding = useMemo(
     () => settleUp(balances).reduce((sum, t) => sum + t.amount, 0),

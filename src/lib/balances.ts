@@ -38,10 +38,13 @@ export function memberShare(e: Expense, group: Group, uid: string): number {
   return expenseShares(e, group).get(uid) ?? 0;
 }
 
-/** Net balance per member: positive = they are owed, negative = they owe. */
+/** Net balance per member: positive = they are owed, negative = they owe.
+ *  Recorded settlements move the money — "from" has paid "to", so the debt
+ *  between them shrinks accordingly. */
 export function computeBalances(
   group: Group,
   expenses: Expense[],
+  settlements: { from: string; to: string; amount: number }[] = [],
 ): Map<string, number> {
   const balances = new Map<string, number>();
   for (const m of group.members) balances.set(m.uid, 0);
@@ -52,6 +55,10 @@ export function computeBalances(
     for (const [uid, share] of shares) {
       balances.set(uid, (balances.get(uid) ?? 0) - share);
     }
+  }
+  for (const s of settlements) {
+    balances.set(s.from, (balances.get(s.from) ?? 0) + s.amount);
+    balances.set(s.to, (balances.get(s.to) ?? 0) - s.amount);
   }
   for (const [uid, v] of balances) balances.set(uid, round2(v));
   return balances;

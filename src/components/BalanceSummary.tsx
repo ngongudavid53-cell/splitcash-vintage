@@ -26,7 +26,7 @@ export function BalanceSummary({
   settlements,
   me,
 }: BalanceSummaryProps) {
-  const balances = computeBalances(group, expenses);
+  const balances = computeBalances(group, expenses, settlements);
   const transfers = settleUp(balances);
   const myNet = balances.get(me) ?? 0;
 
