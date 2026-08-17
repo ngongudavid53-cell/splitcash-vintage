@@ -73,9 +73,10 @@ exactly which key to add where instead of breaking.
 | **Ads (Gravity)** | inside the chat panel | `GRAVITY_API_KEY` (Keys tab); test ads by default | Yes — the app's Convex backend |
 | **Tip jar (Braintree, legacy)** | optional second tip channel | `BRAINTREE_MERCHANT_ID/PUBLIC_KEY/PRIVATE_KEY` | Only if you deploy `main.ts` |
 
-Client-side-only fallbacks (`VITE_GEMINI_API_KEY`, `VITE_GRAVITY_API_KEY`,
-`VITE_GRAVITY_FUNCTION_URL`) exist for previews without the backend — see
-`.env.example` for the full key reference.
+Provider credentials are server-only. The app may use an explicitly configured
+browser-safe proxy URL for legacy Gravity deployments, but it never accepts
+Gemini or Gravity provider keys in the browser. Missing optional services remain
+disabled without blocking ledger functionality.
 
 ## Backend keys — no server to deploy
 

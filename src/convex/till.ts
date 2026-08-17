@@ -86,7 +86,7 @@ export const config = httpAction(async () => {
           assistant: Boolean(process.env.GEMINI_API_KEY),
           ads: Boolean(process.env.GRAVITY_API_KEY),
           braintree: false,
-          stripe: Boolean(process.env.STRIPE_SECRET_KEY),
+          stripe: paymentsEnabled() && Boolean(process.env.STRIPE_SECRET_KEY),
           version: 2,
     });
 });

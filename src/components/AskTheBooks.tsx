@@ -124,16 +124,12 @@ export function AskTheBooks({
       ) : !aiReady ? (
         <div className="p-4">
           <div className="rounded-sm border border-dashed border-border/80 bg-secondary/30 px-3.5 py-3 text-xs leading-5 text-foreground/75">
-            The keeper is waiting for a key. Set{" "}
+            The keeper is waiting for a server-side{" "}
             <code className="rounded-sm bg-card px-1 py-0.5 font-mono text-[0.7rem]">
               GEMINI_API_KEY
             </code>{" "}
-            on the server that runs main.ts (the panel lights up automatically),
-            or add{" "}
-            <code className="rounded-sm bg-card px-1 py-0.5 font-mono text-[0.7rem]">
-              VITE_GEMINI_API_KEY
-            </code>{" "}
-            in the Keys tab for a client-side trial — then refresh.
+            configuration. Add it to the backend&rsquo;s secret settings, then
+            refresh the app. Provider keys are never accepted in the browser.
           </div>
         </div>
       ) : (

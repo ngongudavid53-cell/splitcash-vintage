@@ -60,7 +60,10 @@ service cloud.firestore {
         && request.resource.data.memberIds.hasAll(resource.data.memberIds)
         && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
         && request.resource.data.memberIds.hasAny([request.auth.uid])
-        && request.resource.data.members.size() == resource.data.members.size() + 1;
+        && request.resource.data.members.size() == resource.data.members.size() + 1
+        && request.resource.data.members[request.resource.data.members.size() - 1].uid == request.auth.uid
+        && request.resource.data.members[request.resource.data.members.size() - 1].name is string
+        && request.resource.data.members[request.resource.data.members.size() - 1].name.size() > 0;
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
 
       match /expenses/{expenseId} {
@@ -75,8 +78,11 @@ service cloud.firestore {
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
           && request.resource.data.splitBetween is list
           && request.resource.data.splitBetween.size() >= 1
+          && request.resource.data.splitBetween.size() <= groupDoc(groupId).data.memberIds.size()
           && request.resource.data.splitBetween.hasOnly(groupDoc(groupId).data.memberIds)
-          && request.resource.data.splitMode in ["equal", "custom"];
+          && request.resource.data.splitMode in ["equal", "custom"]
+          && ((request.resource.data.splitMode == "equal" && request.resource.data.shares == null)
+            || (request.resource.data.splitMode == "custom" && request.resource.data.shares is map));
         allow update: if signedIn() && isMemberOf(groupId)
           && resource.data.createdBy == request.auth.uid
           && request.resource.data.createdBy == resource.data.createdBy
@@ -88,8 +94,11 @@ service cloud.firestore {
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
           && request.resource.data.splitBetween is list
           && request.resource.data.splitBetween.size() >= 1
+          && request.resource.data.splitBetween.size() <= groupDoc(groupId).data.memberIds.size()
           && request.resource.data.splitBetween.hasOnly(groupDoc(groupId).data.memberIds)
-          && request.resource.data.splitMode in ["equal", "custom"];
+          && request.resource.data.splitMode in ["equal", "custom"]
+          && ((request.resource.data.splitMode == "equal" && request.resource.data.shares == null)
+            || (request.resource.data.splitMode == "custom" && request.resource.data.shares is map));
         allow delete: if signedIn() && isMemberOf(groupId)
           && resource.data.createdBy == request.auth.uid;
       }
@@ -101,6 +110,7 @@ service cloud.firestore {
           && request.resource.data.settledBy == request.auth.uid
           && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.to is string
+          && request.resource.data.to != request.auth.uid
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to]);
         allow update: if false;
         allow delete: if signedIn() && isMemberOf(groupId)
