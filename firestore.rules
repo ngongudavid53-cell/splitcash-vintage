@@ -26,78 +26,48 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // users/{uid} — public names, private writes. Memberships are stored
-    // denormalized inside groups, so reading any user doc is enough for UIs.
-    //
-    // HARDENED for launch: the owner can update their own contact fields, but
-    // premium fields (premium, premiumSince, premiumTx) can never be changed
-    // by the client. A real premium grant is written by the app's own backend
-    // (Convex `/api/stripe/grant`, after the server verifies the paid Stripe
-    // session in `/api/stripe/verify`); the client's `grantPremium` call is
-    // only honored because the backend validates the server-issued proof
-    // token it hands back, and the rule below keeps the client out entirely.
+    // User profiles: clients may maintain only their own public identity.
+    // Premium entitlements are server-owned and must never be client-writable.
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.premium == false
-        && (request.resource.data.premiumTx == null
-          || request.resource.data.premiumTx is string
-          && request.resource.data.premiumTx.matches('^cp-[a-z0-9]+-[a-z0-9]{32}$'));
+        && request.resource.data.premium == false;
       allow update: if signedIn() && request.auth.uid == uid
-        && (request.resource.data.premium == false
-          || (
-            request.resource.data.premium == true
-            && resource.data.premium == false
-            && request.resource.data.premiumTx is string
-            && request.resource.data.premiumTx.matches('^cp-[a-z0-9]+-[a-z0-9]{32}$')
-          ));
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(["name", "email"]);
       allow delete: if false;
     }
 
-    // groups — invite-code ledgers. Read/join requires membership; members can
-    // only ever be *added* (invites), never silently removed by a member.
     match /groups/{groupId} {
       allow read: if signedIn()
         && resource.data.memberIds.hasAny([request.auth.uid]);
-
       allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.memberIds.size() == 1
         && request.resource.data.memberIds.hasAny([request.auth.uid])
-        && request.resource.data.memberIds.size() >= 1
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.inviteCode is string
         && request.resource.data.inviteCode.size() == 6;
 
-      // Updates: existing members may edit (never dropping anyone); a
-      // signed-in non-member may join by adding exactly one new member —
-      // themselves.
+      // A non-member may join only as themselves. Group metadata is immutable
+      // from the browser, preventing members from rewriting invite codes or
+      // identities. Administrative edits need a trusted server path.
       allow update: if signedIn()
+        && !resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(["members", "memberIds"])
         && request.resource.data.memberIds.hasAll(resource.data.memberIds)
-        && (
-          resource.data.memberIds.hasAny([request.auth.uid])
-          || (
-            request.resource.data.memberIds.size()
-              == resource.data.memberIds.size() + 1
-            && request.resource.data.memberIds.hasAny([request.auth.uid])
-          )
-        )
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.inviteCode is string
-        && request.resource.data.inviteCode.size() == 6;
+        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.members.size() == resource.data.members.size() + 1;
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
 
-      allow delete: if signedIn()
-        && resource.data.createdBy == request.auth.uid;
-
-      // expenses subcollection — only members see the daybook of a ledger
-      // they belong to (the invite code is the key to join, not to snoop).
-      // Create/update/delete stay gated on membership with real validation.
       match /expenses/{expenseId} {
         allow read: if signedIn() && isMemberOf(groupId);
-        allow create: if signedIn()
-          && isMemberOf(groupId)
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
+        allow create: if signedIn() && isMemberOf(groupId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
           && request.resource.data.description.size() > 0
           && request.resource.data.description.size() <= 200
@@ -105,34 +75,36 @@ service cloud.firestore {
           && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
           && request.resource.data.splitBetween is list
           && request.resource.data.splitBetween.size() >= 1
-          && request.resource.data.splitMode in ["equal", "custom"]
-          && request.resource.data.splitBetween.all(
-               uid, uid is string && groupDoc(groupId).data.memberIds.hasAny([uid]));
+          && request.resource.data.splitBetween.hasOnly(groupDoc(groupId).data.memberIds)
+          && request.resource.data.splitMode in ["equal", "custom"];
         allow update: if signedIn() && isMemberOf(groupId)
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
+          && resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
-          && request.resource.data.description.size() > 0;
-        allow delete: if signedIn() && isMemberOf(groupId);
+          && request.resource.data.description.size() > 0
+          && request.resource.data.description.size() <= 200
+          && request.resource.data.paidBy is string
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.paidBy])
+          && request.resource.data.splitBetween is list
+          && request.resource.data.splitBetween.size() >= 1
+          && request.resource.data.splitBetween.hasOnly(groupDoc(groupId).data.memberIds)
+          && request.resource.data.splitMode in ["equal", "custom"];
+        allow delete: if signedIn() && isMemberOf(groupId)
+          && resource.data.createdBy == request.auth.uid;
       }
 
-      // settlements subcollection — "X paid Y" records, one per pair
-      // (idempotent id). Only the *payer* may record that they paid; only
-      // members can read or un-settle.
       match /settlements/{settlementId} {
         allow read: if signedIn() && isMemberOf(groupId);
-        allow create: if signedIn()
-          && isMemberOf(groupId)
+        allow create: if signedIn() && isMemberOf(groupId)
           && request.resource.data.from == request.auth.uid
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
-          && request.resource.data.from is string
+          && request.resource.data.settledBy == request.auth.uid
+          && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.to is string
-          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.from])
-          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to])
-          && request.resource.data.settledBy == request.auth.uid;
+          && groupDoc(groupId).data.memberIds.hasAny([request.resource.data.to]);
         allow update: if false;
-        allow delete: if signedIn() && isMemberOf(groupId);
+        allow delete: if signedIn() && isMemberOf(groupId)
+          && resource.data.from == request.auth.uid;
       }
     }
   }
