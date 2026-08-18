@@ -205,17 +205,20 @@ const SCAN_RATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (1 month)
 const SCAN_FREE_MONTHLY_MAX = 5;
 const scanRateBuckets = new Map<string, number[]>();
 
-function scanRateLimited(key: string, isPro: boolean): boolean {
-    if (isPro) return false;
+function checkScanRateLimit(key: string, isPro: boolean): { limited: boolean; hits: number[] } {
+    if (isPro) return { limited: false, hits: [] };
     const now = Date.now();
     const hits = (scanRateBuckets.get(key) ?? []).filter((t) => now - t < SCAN_RATE_WINDOW_MS);
     if (hits.length >= SCAN_FREE_MONTHLY_MAX) {
           scanRateBuckets.set(key, hits);
-          return true;
+          return { limited: true, hits };
     }
-    hits.push(now);
+    return { limited: false, hits };
+}
+
+function recordScanUsage(key: string, hits: number[]): void {
+    hits.push(Date.now());
     scanRateBuckets.set(key, hits);
-    return false;
 }
 
 export const scanReceipt = httpAction(async (_ctx, request) => {
@@ -226,18 +229,29 @@ export const scanReceipt = httpAction(async (_ctx, request) => {
           image?: unknown;
           mimeType?: unknown;
           sessionId?: unknown;
+          proofToken?: unknown;
     } | null;
 
     const base64Image = String(body?.image ?? "").trim();
     const mimeType = String(body?.mimeType ?? "image/jpeg").trim();
     const sessionId = String(body?.sessionId ?? "").trim();
+    const proofToken = String(body?.proofToken ?? "").trim();
 
-    // Verify Pro status on the server using verified payment session
+    // Verify Pro status on the server using verified payment session or proof token
     let isPro = false;
     if (sessionId) {
           const record = verifiedSessions.get(sessionId);
           if (record && record.granted) {
                   isPro = true;
+          }
+    }
+    if (!isPro && proofToken && proofToken.startsWith("cp-")) {
+          const tokenSessionId = proofToken.split("-")[1];
+          if (tokenSessionId) {
+                  const record = verifiedSessions.get(tokenSessionId);
+                  if (record && record.granted) {
+                            isPro = true;
+                  }
           }
     }
 
@@ -246,7 +260,8 @@ export const scanReceipt = httpAction(async (_ctx, request) => {
     }
 
     const ip = clientKey(request);
-    if (scanRateLimited(ip, isPro)) {
+    const rateCheck = checkScanRateLimit(ip, isPro);
+    if (rateCheck.limited) {
           stats.ocr.rateLimited++;
           return json({ error: "Free monthly scan limit reached (5/5). Upgrade to Pro for unlimited scanning!" }, 429);
     }
@@ -290,6 +305,9 @@ Return ONLY valid JSON with this exact schema (no markdown, no triple backticks)
                   items?: string[];
           };
 
+          if (!isPro) {
+                  recordScanUsage(ip, rateCheck.hits);
+          }
           stats.ocr.parsed++;
           return json({
                   success: true,

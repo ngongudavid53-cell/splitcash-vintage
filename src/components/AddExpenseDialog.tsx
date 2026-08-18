@@ -146,7 +146,7 @@ export function AddExpenseDialog({
         body: JSON.stringify({
           image: dataUrl,
           mimeType: file.type,
-          isPro,
+          proofToken: premiumRecord?.premiumTx,
         }),
       });
 
