@@ -230,6 +230,12 @@ export default function Landing() {
             Est. today — a ledger for friends
           </span>
           <Link
+            to="/help"
+            className="text-sm font-medium underline decoration-dotted underline-offset-4 hover:text-primary"
+          >
+            How it works
+          </Link>
+          <Link
             to={home}
             className="text-sm font-medium underline decoration-dotted underline-offset-4 hover:text-primary"
           >
