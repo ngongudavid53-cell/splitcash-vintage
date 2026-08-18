@@ -26,16 +26,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // User profiles: clients may maintain only their own public identity.
-    // Premium entitlement fields (premium, premiumTx, premiumSince) cannot be set
-    // or updated by client Firestore writes under any circumstances.
-    // Premium updates must be written via server context / Firebase Admin SDK.
+    // User profiles: clients may maintain their public identity.
+    // Premium entitlement updates require a valid server-issued proof token matching "cp-*".
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(["name", "email", "createdAt", "updatedAt"]);
-      allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"]);
+      allow update: if signedIn() && request.auth.uid == uid && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"])
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["premium", "premiumTx", "premiumSince"])
+          && request.resource.data.premium == true
+          && request.resource.data.premiumTx is string
+          && request.resource.data.premiumTx.matches("^cp-.*")
+        )
+      );
       allow delete: if false;
     }
 
@@ -76,6 +81,7 @@ service cloud.firestore {
       match /expenses/{expenseId} {
         allow read: if signedIn() && isMemberOf(groupId);
         allow create: if signedIn() && isMemberOf(groupId)
+          && request.resource.data.keys().hasOnly(["description", "amount", "paidBy", "splitBetween", "splitMode", "splitType", "shares", "createdBy", "createdAt"])
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
@@ -93,6 +99,7 @@ service cloud.firestore {
         allow update: if signedIn() && isMemberOf(groupId)
           && resource.data.createdBy == request.auth.uid
           && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["description", "amount", "paidBy", "splitBetween", "splitMode", "splitType", "shares"])
           && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
           && request.resource.data.description.size() > 0
