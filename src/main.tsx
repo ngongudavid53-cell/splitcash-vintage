@@ -10,6 +10,7 @@ import Landing from "./pages/Landing";
 import AuthPage from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import GroupView from "./pages/GroupView";
+import HowToUse from "./pages/HowToUse";
 import NotFound from "./pages/NotFound";
 
 // All route pages are imported eagerly. The preview proxy has trouble
@@ -118,6 +119,7 @@ function AppShell() {
       <RouteSyncer />
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/how-to-use" element={<HowToUse />} />
         <Route path="/auth" element={<AuthPage redirectAfterAuth="/app" />} />
         <Route
           path="/app"

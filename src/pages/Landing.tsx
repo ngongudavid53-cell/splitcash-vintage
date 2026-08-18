@@ -227,9 +227,12 @@ export default function Landing() {
           <BrandMark />
         </Link>
         <div className="flex items-center gap-5 sm:gap-7">
-          <span className="hidden text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-muted-foreground md:block">
-            Est. today — a ledger for friends
-          </span>
+          <Link
+            to="/how-to-use"
+            className="text-sm font-medium hover:text-primary"
+          >
+            How to use
+          </Link>
           <Link
             to={home}
             className="text-sm font-medium underline decoration-dotted underline-offset-4 hover:text-primary"
@@ -405,10 +408,12 @@ export default function Landing() {
             <span className="font-display font-semibold">Common Pot</span>
             <span className="text-xs text-muted-foreground">· Vol. I, est. today</span>
           </div>
-          <p className="max-w-sm text-xs leading-5 text-muted-foreground">
-            Hand-set in Fraunces &amp; Archivo on aged paper. No tracking, no
-            fees — it&rsquo;s just a ledger.
-          </p>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Hand-set in Fraunces &amp; Archivo on aged paper.</span>
+            <Link to="/how-to-use" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+              User Guide
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

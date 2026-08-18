@@ -101,6 +101,12 @@ export default function Dashboard() {
               {displayName}
             </span>
           </span>
+          <Link
+            to="/how-to-use"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            How to use
+          </Link>
           <Button
             type="button"
             variant="outline"
