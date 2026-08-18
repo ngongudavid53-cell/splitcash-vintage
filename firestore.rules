@@ -26,21 +26,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // User profiles: clients may maintain their public identity.
-    // Premium entitlement updates require a valid server-issued proof token matching "cp-*".
+    // User profiles: clients may maintain only their own public identity.
+    // Premium entitlement fields (premium, premiumTx, premiumSince) CANNOT be set
+    // or updated by client Firestore writes under any circumstances.
+    // Premium updates must be written via server context / Firebase Admin SDK.
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(["name", "email", "createdAt", "updatedAt"]);
-      allow update: if signedIn() && request.auth.uid == uid && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"])
-        || (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["premium", "premiumTx", "premiumSince"])
-          && request.resource.data.premium == true
-          && request.resource.data.premiumTx is string
-          && request.resource.data.premiumTx.matches("^cp-.*")
-        )
-      );
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"]);
       allow delete: if false;
     }
 
