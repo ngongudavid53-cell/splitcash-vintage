@@ -27,21 +27,16 @@ service cloud.firestore {
     }
 
     // User profiles: clients may maintain only their own public identity.
-    // Premium entitlements are server-gated via server-issued proof tokens (cp-...).
+    // Premium entitlement fields (premium, premiumTx, premiumSince) cannot be set
+    // or updated by client Firestore writes under any circumstances.
+    // Premium updates must be written via server context / Firebase Admin SDK.
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.premium == false;
+        && (!request.resource.data.keys().hasAny(["premium", "premiumTx", "premiumSince"])
+            || request.resource.data.premium == false);
       allow update: if signedIn() && request.auth.uid == uid
-        && (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"])
-          || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email", "premium", "premiumTx", "premiumSince"])
-            && request.resource.data.premium == true
-            && request.resource.data.premiumTx is string
-            && request.resource.data.premiumTx.matches("^cp-.+$")
-          )
-        );
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"]);
       allow delete: if false;
     }
 

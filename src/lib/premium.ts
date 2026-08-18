@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { getDb, isFirebaseConfigured } from "./firebase";
 
-/** The one-time price of the Premium Ledger, in USD (must match the server's
- *  PREMIUM_PRICE in main.ts). */
-export const PREMIUM_PRICE = "4.99";
+/** The Pro subscription price, in USD (must match the server's
+ *  PREMIUM_PRICE in till.ts). */
+export const PREMIUM_PRICE = "18.99";
 
 /** Fields kept on the user's own `users/{uid}` doc. */
 export interface PremiumRecord {

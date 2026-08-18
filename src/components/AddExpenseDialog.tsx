@@ -235,7 +235,7 @@ export function AddExpenseDialog({
           <div className="flex items-center justify-between rounded-sm border border-dashed border-primary/30 bg-primary/5 p-2.5">
             <div>
               <p className="text-xs font-medium text-foreground">Scan a receipt with Gemini</p>
-              <p className="text-[0.7rem] text-muted-foreground">Auto-fill amount & description ({isPro ? "Unlimited Pro" : "5 free/day"})</p>
+              <p className="text-[0.7rem] text-muted-foreground">Auto-fill amount & description ({isPro ? "Unlimited Pro" : "5 free/month"})</p>
             </div>
             <input
               type="file"

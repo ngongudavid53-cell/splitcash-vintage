@@ -17,9 +17,9 @@
 import { httpAction } from "./_generated/server";
 import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 
-/** The one-time price of the Premium Ledger (must match src/lib/premium.ts). */
-const PREMIUM_PRICE = "4.99";
-const PREMIUM_CENTS = 499;
+/** The Pro subscription price (must match src/lib/premium.ts). */
+const PREMIUM_PRICE = "18.99";
+const PREMIUM_CENTS = 1899;
 
 const paymentsEnabled = () =>
   process.env.PAYMENTS_ENABLED !== "false" && Boolean(process.env.STRIPE_SECRET_KEY);
@@ -201,15 +201,15 @@ export const assistant = httpAction(async (_ctx, request) => {
 
 // --- /api/scan-receipt: parses receipt images using Gemini vision -----------
 
-const SCAN_RATE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-const SCAN_FREE_DAILY_MAX = 5;
+const SCAN_RATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (1 month)
+const SCAN_FREE_MONTHLY_MAX = 5;
 const scanRateBuckets = new Map<string, number[]>();
 
 function scanRateLimited(key: string, isPro: boolean): boolean {
     if (isPro) return false;
     const now = Date.now();
     const hits = (scanRateBuckets.get(key) ?? []).filter((t) => now - t < SCAN_RATE_WINDOW_MS);
-    if (hits.length >= SCAN_FREE_DAILY_MAX) {
+    if (hits.length >= SCAN_FREE_MONTHLY_MAX) {
           scanRateBuckets.set(key, hits);
           return true;
     }
@@ -225,12 +225,21 @@ export const scanReceipt = httpAction(async (_ctx, request) => {
     const body = (await request.json().catch(() => null)) as {
           image?: unknown;
           mimeType?: unknown;
-          isPro?: unknown;
+          sessionId?: unknown;
     } | null;
 
     const base64Image = String(body?.image ?? "").trim();
     const mimeType = String(body?.mimeType ?? "image/jpeg").trim();
-    const isPro = Boolean(body?.isPro);
+    const sessionId = String(body?.sessionId ?? "").trim();
+
+    // Verify Pro status on the server using verified payment session
+    let isPro = false;
+    if (sessionId) {
+          const record = verifiedSessions.get(sessionId);
+          if (record && record.granted) {
+                  isPro = true;
+          }
+    }
 
     if (!base64Image) {
           return json({ error: "No receipt image provided." }, 400);
@@ -239,7 +248,7 @@ export const scanReceipt = httpAction(async (_ctx, request) => {
     const ip = clientKey(request);
     if (scanRateLimited(ip, isPro)) {
           stats.ocr.rateLimited++;
-          return json({ error: "Free daily scan limit reached (5/5). Upgrade to Pro for unlimited scanning!" }, 429);
+          return json({ error: "Free monthly scan limit reached (5/5). Upgrade to Pro for unlimited scanning!" }, 429);
     }
 
     stats.ocr.requests++;

@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/logic.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/stripe.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/braintree.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/seasonal.smoke.mjs"
+    "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/logic.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/stripe.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/braintree.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/seasonal.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/security.smoke.mjs"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.90",
