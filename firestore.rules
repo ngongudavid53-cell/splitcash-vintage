@@ -27,14 +27,21 @@ service cloud.firestore {
     }
 
     // User profiles: clients may maintain only their own public identity.
-    // Premium entitlements are server-owned and must never be client-writable.
+    // Premium entitlements are server-gated via server-issued proof tokens (cp-...).
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.premium == false;
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(["name", "email"]);
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"])
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email", "premium", "premiumTx", "premiumSince"])
+            && request.resource.data.premium == true
+            && request.resource.data.premiumTx is string
+            && request.resource.data.premiumTx.matches("^cp-.+$")
+          )
+        );
       allow delete: if false;
     }
 

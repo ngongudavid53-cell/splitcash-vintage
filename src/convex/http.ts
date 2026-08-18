@@ -13,6 +13,7 @@ const TILL_ROUTES = [
   { method: "GET", path: "/api/config", handler: till.config },
   { method: "GET", path: "/api/stats", handler: till.statsHandler },
   { method: "POST", path: "/api/assistant", handler: till.assistant },
+  { method: "POST", path: "/api/scan-receipt", handler: till.scanReceipt },
   { method: "POST", path: "/api/ad", handler: till.ad },
   { method: "POST", path: "/api/stripe/checkout", handler: till.stripeCheckout },
   { method: "POST", path: "/api/stripe/verify", handler: till.stripeVerify },

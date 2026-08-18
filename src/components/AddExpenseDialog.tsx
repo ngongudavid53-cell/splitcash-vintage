@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { apiBase } from "@/lib/server";
+import { useAuth } from "@/hooks/use-auth";
+import { usePremium } from "@/lib/premium";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +50,13 @@ export function AddExpenseDialog({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const base = apiBase();
+  const { user } = useAuth();
+  const { record: premiumRecord } = usePremium(user?.uid);
+  const isPro = Boolean(premiumRecord?.premium);
 
   // Fresh page each time the drawer opens — prefilled when editing.
   useEffect(() => {
@@ -114,6 +124,54 @@ export function AddExpenseDialog({
     setShares((prev) => ({ ...prev, [uid]: raw }));
   }
 
+  async function handleReceiptScan(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (JPEG or PNG).");
+      return;
+    }
+    setScanning(true);
+    setError(null);
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const dataUrl = await base64Promise;
+
+      const res = await fetch(`${base}/api/scan-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: dataUrl,
+          mimeType: file.type,
+          isPro,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        amount?: number | null;
+        description?: string;
+        error?: string;
+      };
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Could not read receipt.");
+      }
+
+      if (data.description) setDescription(data.description);
+      if (data.amount != null) setAmountRaw(String(data.amount));
+      toast.success("Receipt scanned successfully!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Receipt scan failed.");
+    } finally {
+      setScanning(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleSubmit() {
     if (!valid || amount == null) return;
     setSaving(true);
@@ -174,6 +232,33 @@ export function AddExpenseDialog({
         </DialogHeader>
 
         <div className="space-y-5">
+          <div className="flex items-center justify-between rounded-sm border border-dashed border-primary/30 bg-primary/5 p-2.5">
+            <div>
+              <p className="text-xs font-medium text-foreground">Scan a receipt with Gemini</p>
+              <p className="text-[0.7rem] text-muted-foreground">Auto-fill amount & description ({isPro ? "Unlimited Pro" : "5 free/day"})</p>
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleReceiptScan(file);
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={scanning}
+              onClick={() => fileInputRef.current?.click()}
+              className="h-8 text-xs"
+            >
+              {scanning ? "Scanning…" : "📷 Scan Receipt"}
+            </Button>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-muted-foreground">
               What was it?

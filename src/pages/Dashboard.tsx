@@ -25,6 +25,7 @@ import {
   PotIcon,
 } from "@/components/icons";
 import { SetupNotice } from "@/components/SetupNotice";
+import { SeasonalBanner } from "@/components/SeasonalBanner";
 import { SupportPot } from "@/components/SupportPot";
 import { TillStatus } from "@/components/TillStatus";
 import { TillTally } from "@/components/TillTally";

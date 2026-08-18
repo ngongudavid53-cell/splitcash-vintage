@@ -22,6 +22,7 @@ import {
 } from "@/components/icons";
 import { SupportPot } from "@/components/SupportPot";
 import { BraintreeTipJar } from "@/components/BraintreeTipJar";
+import { SeasonalBanner } from "@/components/SeasonalBanner";
 
 const fade = {
   initial: { opacity: 0, y: 18 },
@@ -245,6 +246,9 @@ export default function Landing() {
 
       {/* Hero — set left, like a book page */}
       <section className="mx-auto grid max-w-6xl gap-14 px-5 pb-16 sm:px-8 lg:grid-cols-12 lg:gap-8 lg:pb-24">
+        <div className="lg:col-span-12">
+          <SeasonalBanner />
+        </div>
         <div className="lg:col-span-7 lg:pt-16">
           <motion.div {...fade}>
             <p className="text-[0.62rem] font-bold uppercase tracking-[0.3em] text-primary">

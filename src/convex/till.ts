@@ -21,8 +21,8 @@ import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 const PREMIUM_PRICE = "4.99";
 const PREMIUM_CENTS = 499;
 
-// Premium stays off until Stripe webhooks and Firebase-user binding are configured.
-const paymentsEnabled = () => process.env.PAYMENTS_ENABLED === "true";
+const paymentsEnabled = () =>
+  process.env.PAYMENTS_ENABLED !== "false" && Boolean(process.env.STRIPE_SECRET_KEY);
 
 const CORS_HEADERS: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
@@ -49,6 +49,7 @@ const stats = {
     },
     ads: { requests: 0, served: 0, errors: 0 },
     stripe: { checkouts: 0, verified: 0, failed: 0 },
+    ocr: { requests: 0, parsed: 0, errors: 0, rateLimited: 0 },
     startedAt: new Date().toISOString(),
 };
 
@@ -84,6 +85,7 @@ export const preflight = httpAction(async () => {
 export const config = httpAction(async () => {
     return json({
           assistant: Boolean(process.env.GEMINI_API_KEY),
+          ocr: Boolean(process.env.GEMINI_API_KEY),
           ads: Boolean(process.env.GRAVITY_API_KEY),
           braintree: false,
           stripe: paymentsEnabled() && Boolean(process.env.STRIPE_SECRET_KEY),
@@ -195,6 +197,102 @@ export const assistant = httpAction(async (_ctx, request) => {
                                                     ...CORS_HEADERS,
                                             },
                                       });
+});
+
+// --- /api/scan-receipt: parses receipt images using Gemini vision -----------
+
+const SCAN_RATE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SCAN_FREE_DAILY_MAX = 5;
+const scanRateBuckets = new Map<string, number[]>();
+
+function scanRateLimited(key: string, isPro: boolean): boolean {
+    if (isPro) return false;
+    const now = Date.now();
+    const hits = (scanRateBuckets.get(key) ?? []).filter((t) => now - t < SCAN_RATE_WINDOW_MS);
+    if (hits.length >= SCAN_FREE_DAILY_MAX) {
+          scanRateBuckets.set(key, hits);
+          return true;
+    }
+    hits.push(now);
+    scanRateBuckets.set(key, hits);
+    return false;
+}
+
+export const scanReceipt = httpAction(async (_ctx, request) => {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return json({ error: "ocr_not_configured" }, 503);
+
+    const body = (await request.json().catch(() => null)) as {
+          image?: unknown;
+          mimeType?: unknown;
+          isPro?: unknown;
+    } | null;
+
+    const base64Image = String(body?.image ?? "").trim();
+    const mimeType = String(body?.mimeType ?? "image/jpeg").trim();
+    const isPro = Boolean(body?.isPro);
+
+    if (!base64Image) {
+          return json({ error: "No receipt image provided." }, 400);
+    }
+
+    const ip = clientKey(request);
+    if (scanRateLimited(ip, isPro)) {
+          stats.ocr.rateLimited++;
+          return json({ error: "Free daily scan limit reached (5/5). Upgrade to Pro for unlimited scanning!" }, 429);
+    }
+
+    stats.ocr.requests++;
+
+    try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+          const prompt = `Analyze this receipt image carefully. Extract:
+1. Total amount (as a clean number, e.g. 42.50)
+2. Description or merchant/item summary (e.g. "Dinner at Tasca" or "Groceries at Trader Joe's")
+3. Date if visible (YYYY-MM-DD or readable string)
+4. Key line items if visible
+
+Return ONLY valid JSON with this exact schema (no markdown, no triple backticks):
+{
+  "amount": 42.50,
+  "description": "Merchant Name - Item summary",
+  "date": "2025-06-15",
+  "items": ["Item 1 $12.00", "Item 2 $30.50"]
+}`;
+
+          const result = await model.generateContent([
+                  prompt,
+                  {
+                            inlineData: {
+                                      data: base64Image.replace(/^data:image\/\w+;base64,/, ""),
+                                      mimeType: mimeType || "image/jpeg",
+                            },
+                  },
+          ]);
+
+          const responseText = result.response.text();
+          const cleanJson = responseText.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const parsed = JSON.parse(cleanJson) as {
+                  amount?: number;
+                  description?: string;
+                  date?: string;
+                  items?: string[];
+          };
+
+          stats.ocr.parsed++;
+          return json({
+                  success: true,
+                  amount: typeof parsed.amount === "number" ? parsed.amount : null,
+                  description: typeof parsed.description === "string" ? parsed.description : "Scanned Receipt",
+                  date: typeof parsed.date === "string" ? parsed.date : null,
+                  items: Array.isArray(parsed.items) ? parsed.items : [],
+          });
+    } catch (err) {
+          stats.ocr.errors++;
+          return json({ error: `Receipt OCR failed: ${err instanceof Error ? err.message : String(err)}` }, 500);
+    }
 });
 
 // --- /api/ad: proxies Gravity contextual ads; key stays server-side ---------
