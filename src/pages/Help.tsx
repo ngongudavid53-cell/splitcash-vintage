@@ -70,7 +70,7 @@ export default function Help() {
           <p className="text-[0.62rem] font-bold uppercase tracking-[0.3em] text-primary">The Common Pot handbook</p>
           <h1 className="mt-4 max-w-3xl text-4xl leading-tight sm:text-5xl">How to use Common Pot</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-foreground/75 sm:text-lg">
-            A short guide from opening your first book to settling the last payment. Keep this page handy when a friend asks, “Okay, but how does this work?”
+            A short guide from opening your first book to settling the last payment. Keep this page handy when a friend asks, "Okay, but how does this work?"
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild><Link to="/auth">Open a ledger <ArrowIcon className="ml-2 h-4 w-4" /></Link></Button>
@@ -104,7 +104,7 @@ export default function Help() {
               <div>
                 <h2 className="text-xl">Account and sign-in help</h2>
                 <p className="mt-2 text-sm leading-6 text-foreground/70">
-                  You can sign in with email and password or with Google. If you forget an email-account password, use the “Forgot password?” option on the sign-in page to request a reset email. If an account was originally created with Google, continue with Google instead of creating a second account.
+                  You can sign in with email and password or with Google. If you forget an email-account password, use the "Forgot password?" option on the sign-in page to request a reset email. If an account was originally created with Google, continue with Google instead of creating a second account.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button asChild><Link to="/auth">Go to sign in</Link></Button>
