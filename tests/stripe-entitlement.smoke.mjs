@@ -1,4 +1,3 @@
-import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -14,7 +13,7 @@ const checks = [
   ["grant route re-verifies Stripe", stripe.includes("paidPremiumSession(data)")],
   ["grant binds payment to user metadata", stripe.includes('data.metadata?.userId !== uid')],
   ["grant uses durable Firestore storage", stripe.includes("grantFirestorePremium")],
-  ["entitlement store is server-side", firebaseAdmin.includes('process.env.FIREBASE_PRIVATE_KEY')],
+  ["entitlement store is server-side", firebaseAdmin.includes("process.env.FIREBASE_PRIVATE_KEY")],
   ["entitlement is keyed by Stripe session", firebaseAdmin.includes("stripeEntitlements") && firebaseAdmin.includes("sessionId")],
   ["client premium writes remain forbidden", rules.includes("affectedKeys().hasOnly([\"name\", \"email\"])")],
 ];
