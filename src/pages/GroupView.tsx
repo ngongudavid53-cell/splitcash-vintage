@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useExpenses, useGroup, useSettlements } from "@/hooks/use-realtime";
 import { computeBalances, potTotal, settleUp } from "@/lib/balances";
 import { isFirebaseConfigured } from "@/lib/firebase";
-import { setSettlement } from "@/lib/firestore";
 import { formatMoney } from "@/lib/money";
 import { isPremium, usePremium } from "@/lib/premium";
 import type { Expense } from "@/lib/types";
@@ -14,13 +13,12 @@ import { cn } from "@/lib/utils";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { BalanceSummary } from "@/components/BalanceSummary";
 import { ExpenseHistory } from "@/components/ExpenseHistory";
-import { BrandMark, Monogram, Paper, Rule, Stamp } from "@/components/bits";
+import { BrandMark, Monogram, Paper } from "@/components/bits";
 import {
   ArrowIcon,
   CopyIcon,
   LogoutIcon,
   PenIcon,
-  PotIcon,
 } from "@/components/icons";
 import { SetupNotice } from "@/components/SetupNotice";
 import { AskTheBooks } from "@/components/AskTheBooks";

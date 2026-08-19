@@ -35,7 +35,7 @@ function inPreviewFrame(): boolean {
  *  risky: inside the preview frame, or on a preview/dev pod hostname whose URL
  *  can change mid-flight (landing back on the shell's home page instead of
  *  this app). In a normal deployed tab the redirect flow is used instead. */
-function usePopupGoogle(): boolean {
+function isPopupGoogle(): boolean {
   if (inPreviewFrame()) return true;
   const host =
     typeof window !== "undefined" ? window.location.hostname : "";
@@ -231,10 +231,10 @@ export default function AuthPage({
     setError(null);
     setGoogleNotice(null);
     traceGoogle(
-      `clicked at ${window.location.href} (popup=${usePopupGoogle()})`,
+      `clicked at ${window.location.href} (popup=${isPopupGoogle()})`,
     );
     try {
-      if (usePopupGoogle()) {
+      if (isPopupGoogle()) {
         // Drop any leftover redirect markers so they can't poison this
         // attempt, then open the popup. Two hiccups get one silent retry:
         // - `cancelled-popup-request` — a previous popup is still winding down

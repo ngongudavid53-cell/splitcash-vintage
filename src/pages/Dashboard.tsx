@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMyGroups } from "@/hooks/use-realtime";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { createGroup, joinGroupByCode } from "@/lib/firestore";
-import { BrandMark, Monogram, Paper, Rule, Stamp } from "@/components/bits";
+import { BrandMark, Monogram, Rule } from "@/components/bits";
 import {
   ArrowIcon,
   CopyIcon,
@@ -25,7 +25,6 @@ import {
   PotIcon,
 } from "@/components/icons";
 import { SetupNotice } from "@/components/SetupNotice";
-import { SeasonalBanner } from "@/components/SeasonalBanner";
 import { SupportPot } from "@/components/SupportPot";
 import { TillStatus } from "@/components/TillStatus";
 import { TillTally } from "@/components/TillTally";

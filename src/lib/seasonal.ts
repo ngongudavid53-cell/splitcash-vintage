@@ -154,7 +154,7 @@ const SEASONS: Record<string, Omit<SeasonInfo, "id">> = {
 function isDateInRange(now: Date, range: DateRange): boolean {
   const year = now.getFullYear();
   const start = new Date(year, range.startMonth - 1, range.startDay, 0, 0, 0);
-  let end = new Date(year, range.endMonth - 1, range.endDay, 23, 59, 59);
+  const end = new Date(year, range.endMonth - 1, range.endDay, 23, 59, 59);
 
   // Cross-year boundary (e.g. Dec 30 to Jan 5)
   if (range.startMonth > range.endMonth) {
