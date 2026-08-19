@@ -25,8 +25,18 @@ function stripeSecret(): string | undefined {
   return process.env.STRIPE_SECRET_KEY;
 }
 
+function entitlementStoreConfigured(): boolean {
+  return Boolean(
+    process.env.FIREBASE_PROJECT_ID
+      && process.env.FIREBASE_CLIENT_EMAIL
+      && process.env.FIREBASE_PRIVATE_KEY,
+  );
+}
+
 function paymentsEnabled(): boolean {
-  return process.env.PAYMENTS_ENABLED !== "false" && Boolean(stripeSecret());
+  return process.env.PAYMENTS_ENABLED !== "false"
+    && Boolean(stripeSecret())
+    && entitlementStoreConfigured();
 }
 
 interface StripeSession {
@@ -62,8 +72,16 @@ function paidPremiumSession(data: StripeSession): boolean {
     && data.metadata?.product === "premium";
 }
 
+export const status = httpAction(async () => {
+  return json({
+    stripe: paymentsEnabled(),
+    entitlementStore: entitlementStoreConfigured(),
+    paymentsEnabled: process.env.PAYMENTS_ENABLED !== "false",
+  });
+});
+
 export const checkout = httpAction(async (_ctx, request) => {
-  if (!paymentsEnabled()) return json({ error: "payments_disabled" }, 503);
+  if (!paymentsEnabled()) return json({ error: "payments_not_configured" }, 503);
 
   try {
     const body = (await request.json().catch(() => null)) as {
@@ -112,7 +130,7 @@ export const checkout = httpAction(async (_ctx, request) => {
 });
 
 export const verify = httpAction(async (_ctx, request) => {
-  if (!paymentsEnabled()) return json({ success: false, error: "payments_disabled" }, 503);
+  if (!paymentsEnabled()) return json({ success: false, error: "payments_not_configured" }, 503);
   try {
     const body = (await request.json().catch(() => null)) as { sessionId?: unknown } | null;
     const sessionId = String(body?.sessionId ?? "").trim();
@@ -142,7 +160,7 @@ export const verify = httpAction(async (_ctx, request) => {
  * premium fields. No in-memory state or client-side premium write is trusted.
  */
 export const grant = httpAction(async (_ctx, request) => {
-  if (!paymentsEnabled()) return json({ success: false, error: "payments_disabled" }, 503);
+  if (!paymentsEnabled()) return json({ success: false, error: "payments_not_configured" }, 503);
 
   try {
     const body = (await request.json().catch(() => null)) as {
