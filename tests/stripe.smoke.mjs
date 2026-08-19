@@ -51,7 +51,6 @@ async function bundleStripe(defines) {
   }
 }
 
-// Temporarily replace globalThis.fetch (the bundled module calls the global).
 function withFetch(impl, fn) {
   const real = globalThis.fetch;
   globalThis.fetch = impl;
@@ -70,7 +69,6 @@ function fakeResponse({ ok = true, contentType = "application/json", json } = {}
   };
 }
 
-/** All backend envs unset — the baseline for most tests. */
 const NONE = {
   "import.meta.env.VITE_CONVEX_SITE_URL": "undefined",
   "import.meta.env.VITE_CONVEX_URL": "undefined",
@@ -79,14 +77,10 @@ const NONE = {
 
 console.log("stripe base url:");
 try {
-  // 1) Nothing configured -> same origin (empty base URL, i.e. /api/... on the
-  //    app's own domain).
   const none = await bundleStripe(NONE);
   ok("no overrides -> same origin (empty base)", () =>
     assert.equal(none.stripeBaseUrl(), ""));
 
-  // 2) Legacy VITE_API_URL set (a separately deployed main.ts on another
-  //    domain) -> the till uses it, and a trailing slash is stripped.
   const shared = await bundleStripe({
     ...NONE,
     "import.meta.env.VITE_API_URL": '"https://api.example.com/"',
@@ -94,8 +88,6 @@ try {
   ok("VITE_API_URL is used (trailing slash stripped)", () =>
     assert.equal(shared.stripeBaseUrl(), "https://api.example.com"));
 
-  // 3) The Convex site URL (explicit) wins over everything, trailing slash
-  //    stripped.
   const site = await bundleStripe({
     ...NONE,
     "import.meta.env.VITE_API_URL": '"https://api.example.com/"',
@@ -104,8 +96,6 @@ try {
   ok("VITE_CONVEX_SITE_URL beats VITE_API_URL (trailing slash stripped)", () =>
     assert.equal(site.stripeBaseUrl(), "https://my-pot-123.convex.site"));
 
-  // 4) With no explicit site URL, the Convex site is derived from the
-  //    deployment's API URL (.convex.cloud -> .convex.site).
   const derived = await bundleStripe({
     ...NONE,
     "import.meta.env.VITE_CONVEX_URL": '"https://my-pot-123.convex.cloud/"',
@@ -115,10 +105,10 @@ try {
 
   console.log("stripe server status:");
 
-  ok("live when /api/config reports stripe:true", () =>
+  ok("live when /api/stripe/status reports stripe:true", () =>
     withFetch(
       async (url) => {
-        assert.equal(String(url), "https://api.example.com/api/config");
+        assert.equal(String(url), "https://api.example.com/api/stripe/status");
         return fakeResponse({ json: { stripe: true } });
       },
       async () => {
@@ -127,9 +117,9 @@ try {
     ),
   );
 
-  ok("not-configured when the server answers without Stripe keys", () =>
+  ok("not-configured when the server answers without durable Stripe setup", () =>
     withFetch(
-      async () => fakeResponse({ json: { stripe: false } }),
+      async () => fakeResponse({ json: { stripe: false, entitlementStore: false } }),
       async () => {
         assert.equal(await shared.fetchStripeServerStatus(), "not-configured");
       },
@@ -147,7 +137,7 @@ try {
     ),
   );
 
-  ok("no-server when the address answers with HTML (e.g. the Vite preview)", () =>
+  ok("no-server when the address answers with HTML", () =>
     withFetch(
       async () => fakeResponse({ contentType: "text/html", json: null }),
       async () => {
