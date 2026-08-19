@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getDb, isFirebaseConfigured } from "./firebase";
 
-/** The Pro subscription price, in USD (must match the server's
- *  PREMIUM_PRICE in till.ts). */
+/** The Premium Ledger price in USD. Must match the server's Stripe price. */
 export const PREMIUM_PRICE = "18.99";
 
 /** Fields kept on the user's own `users/{uid}` doc. */
 export interface PremiumRecord {
   premium: boolean;
-  premiumSince?: number; // epoch ms
+  premiumSince?: number;
   premiumTx?: string;
 }
 
@@ -17,7 +16,6 @@ export function isPremium(record: PremiumRecord | null | undefined): boolean {
   return Boolean(record?.premium);
 }
 
-/** Timestamp folds: Firestore `serverTimestamp()` arrives as a Timestamp. */
 function toMs(value: unknown): number | undefined {
   if (value && typeof value === "object") {
     const ts = value as { toMillis?: () => number };
@@ -26,8 +24,6 @@ function toMs(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
-/** Subscribe to the user's premium record on their `users/{uid}` doc.
- *  `loaded` flips once the first snapshot (or read failure) lands. */
 export function usePremium(
   uid: string | undefined,
 ): { record: PremiumRecord | null; loaded: boolean } {
@@ -53,7 +49,6 @@ export function usePremium(
         setLoaded(true);
       },
       () => {
-        // Rules not published yet (or offline) — behave as not-premium.
         setRecord(null);
         setLoaded(true);
       },
@@ -64,26 +59,22 @@ export function usePremium(
   return { record, loaded };
 }
 
-/** Record a verified premium purchase on the user's own doc.
+/**
+ * Ask the backend to honor a verified Stripe payment.
  *
- * The server is the source of truth now: `POST /api/stripe/grant` re-verifies
- * the paid Stripe session and returns a server-issued proof token, which the
- * hardened Firestore rule requires before `premium` can be flipped to true.
- * A client can never grant itself premium directly. */
+ * The backend re-verifies the Stripe session and writes the entitlement using
+ * Firebase service-account credentials. The browser never writes premium
+ * fields itself, so the grant survives backend restarts.
+ */
 export async function grantPremium(
   uid: string,
   sessionId: string,
   apiBase: string,
 ): Promise<{ transactionId: string }> {
-  if (!isFirebaseConfigured) {
-    throw new Error("Firebase isn't configured yet.");
-  }
-  if (!uid || uid.length < 5) {
-    throw new Error("We don't know who you are yet.");
-  }
-  if (!sessionId) {
-    throw new Error("There's no payment to honor.");
-  }
+  if (!isFirebaseConfigured) throw new Error("Firebase isn't configured yet.");
+  if (!uid || uid.length < 5) throw new Error("We don't know who you are yet.");
+  if (!sessionId) throw new Error("There's no payment to honor.");
+
   const res = await fetch(`${apiBase}/api/stripe/grant`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -91,25 +82,13 @@ export async function grantPremium(
   });
   const data = (await res.json().catch(() => ({}))) as {
     success?: boolean;
-    token?: string;
     transactionId?: string;
     error?: unknown;
   };
-  if (!res.ok || !data.success || typeof data.token !== "string") {
+  if (!res.ok || !data.success || typeof data.transactionId !== "string") {
     throw new Error(
-      typeof data.error === "string"
-        ? data.error
-        : "The till couldn't honor that payment.",
+      typeof data.error === "string" ? data.error : "The till couldn't honor that payment.",
     );
   }
-  await setDoc(
-    doc(getDb(), "users", uid),
-    {
-      premium: true,
-      premiumTx: data.token,
-      premiumSince: serverTimestamp(),
-    },
-    { merge: true },
-  );
-  return { transactionId: data.transactionId ?? "" };
+  return { transactionId: data.transactionId };
 }
