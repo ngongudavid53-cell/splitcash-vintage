@@ -70,9 +70,11 @@ export function useMyGroups(uid: string | undefined): ReadState<Group[]> {
 
   useEffect(() => {
     if (!isFirebaseConfigured || !uid) {
-      setLoaded(false);
-      setError(null);
-      return;
+      const timer = setTimeout(() => {
+        setLoaded(false);
+        setError(null);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     setError(null);
     const q = query(
@@ -107,9 +109,11 @@ export function useGroup(groupId: string | undefined): ReadState<Group> {
 
   useEffect(() => {
     if (!isFirebaseConfigured || !groupId) {
-      setLoaded(false);
-      setError(null);
-      return;
+      const timer = setTimeout(() => {
+        setLoaded(false);
+        setError(null);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     setError(null);
     const unsubscribe = onSnapshot(

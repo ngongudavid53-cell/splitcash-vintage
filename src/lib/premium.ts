@@ -36,11 +36,12 @@ export function usePremium(
 
   useEffect(() => {
     if (!isFirebaseConfigured || !uid) {
-      setRecord(null);
-      setLoaded(false);
-      return;
+      const timer = setTimeout(() => {
+        setRecord(null);
+        setLoaded(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-    setLoaded(false);
     const unsubscribe = onSnapshot(
       doc(getDb(), "users", uid),
       (snap) => {
