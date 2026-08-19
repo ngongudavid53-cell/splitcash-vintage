@@ -27,14 +27,15 @@ service cloud.firestore {
     }
 
     // User profiles: clients may maintain only their own public identity.
-    // Premium entitlements are server-owned and must never be client-writable.
+    // Premium entitlement fields (premium, premiumTx, premiumSince) CANNOT be set
+    // or updated by client Firestore writes under any circumstances.
+    // Premium updates must be written via server context / Firebase Admin SDK.
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.premium == false;
+        && request.resource.data.keys().hasOnly(["name", "email", "createdAt", "updatedAt"]);
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(["name", "email"]);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "email"]);
       allow delete: if false;
     }
 
@@ -50,25 +51,32 @@ service cloud.firestore {
         && request.resource.data.inviteCode is string
         && request.resource.data.inviteCode.size() == 6;
 
-      // A non-member may join only as themselves. Group metadata is immutable
-      // from the browser, preventing members from rewriting invite codes or
-      // identities. Administrative edits need a trusted server path.
-      allow update: if signedIn()
-        && !resource.data.memberIds.hasAny([request.auth.uid])
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(["members", "memberIds"])
-        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
-        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
-        && request.resource.data.memberIds.hasAny([request.auth.uid])
-        && request.resource.data.members.size() == resource.data.members.size() + 1
-        && request.resource.data.members[request.resource.data.members.size() - 1].uid == request.auth.uid
-        && request.resource.data.members[request.resource.data.members.size() - 1].name is string
-        && request.resource.data.members[request.resource.data.members.size() - 1].name.size() > 0;
+      // Group update rules:
+      // 1. Non-members joining: can only append themselves to members and memberIds.
+      // 2. Existing members: can update only the group name.
+      allow update: if signedIn() && (
+        (!resource.data.memberIds.hasAny([request.auth.uid])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["members", "memberIds"])
+          && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+          && request.resource.data.memberIds.hasAny([request.auth.uid])
+          && request.resource.data.members.size() == resource.data.members.size() + 1
+          && request.resource.data.members[request.resource.data.members.size() - 1].uid == request.auth.uid
+          && request.resource.data.members[request.resource.data.members.size() - 1].name is string
+          && request.resource.data.members[request.resource.data.members.size() - 1].name.size() > 0
+        ) || (
+          isMemberOf(groupId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+        )
+      );
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
 
       match /expenses/{expenseId} {
         allow read: if signedIn() && isMemberOf(groupId);
         allow create: if signedIn() && isMemberOf(groupId)
+          && request.resource.data.keys().hasOnly(["description", "amount", "paidBy", "splitBetween", "splitMode", "splitType", "shares", "createdBy", "createdAt"])
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
@@ -86,6 +94,7 @@ service cloud.firestore {
         allow update: if signedIn() && isMemberOf(groupId)
           && resource.data.createdBy == request.auth.uid
           && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["description", "amount", "paidBy", "splitBetween", "splitMode", "splitType", "shares"])
           && request.resource.data.amount is number && request.resource.data.amount > 0
           && request.resource.data.description is string
           && request.resource.data.description.size() > 0
@@ -106,6 +115,7 @@ service cloud.firestore {
       match /settlements/{settlementId} {
         allow read: if signedIn() && isMemberOf(groupId);
         allow create: if signedIn() && isMemberOf(groupId)
+          && request.resource.data.keys().hasOnly(["from", "to", "amount", "settledBy", "createdAt"])
           && request.resource.data.from == request.auth.uid
           && request.resource.data.settledBy == request.auth.uid
           && request.resource.data.amount is number && request.resource.data.amount > 0
