@@ -49,7 +49,7 @@ export async function fetchStripeServerStatus(): Promise<
   "live" | "no-server" | "not-configured"
 > {
   try {
-    const res = await fetch(`${stripeBaseUrl()}/api/config`, {
+    const res = await fetch(`${stripeBaseUrl()}/api/stripe/status`, {
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return "no-server";
