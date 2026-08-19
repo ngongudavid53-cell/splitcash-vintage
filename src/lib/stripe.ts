@@ -6,6 +6,7 @@
  * session id. The backend then verifies and durably records the entitlement.
  */
 
+import { getAuthClient } from "./firebase";
 import { apiBase } from "./server";
 
 export function stripeBaseUrl(): string {
@@ -64,14 +65,19 @@ export async function fetchStripeServerStatus(): Promise<
 export async function createStripeCheckout(
   amount: string,
   origin: string,
-  uid: string,
+  uid?: string,
 ): Promise<{ url: string }> {
+  const signedInUid = uid?.trim() || getAuthClient().currentUser?.uid || "";
+  if (!signedInUid) {
+    throw new StripeSetupError("auth-error", 401, "Sign in before starting checkout.");
+  }
+
   let res: Response;
   try {
     res = await fetch(`${stripeBaseUrl()}/api/stripe/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, origin, uid }),
+      body: JSON.stringify({ amount, origin, uid: signedInUid }),
     });
   } catch {
     throw new StripeSetupError("unreachable", undefined, "Couldn't reach the till server.");
