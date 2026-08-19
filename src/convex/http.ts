@@ -19,6 +19,7 @@ const TILL_ROUTES = [
 ] as const;
 
 const STRIPE_ROUTES = [
+  { method: "GET", path: "/api/stripe/status", handler: stripe.status },
   { method: "POST", path: "/api/stripe/checkout", handler: stripe.checkout },
   { method: "POST", path: "/api/stripe/verify", handler: stripe.verify },
   { method: "POST", path: "/api/stripe/grant", handler: stripe.grant },
