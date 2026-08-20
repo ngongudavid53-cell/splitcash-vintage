@@ -10,7 +10,13 @@ function toMs(value: unknown): number | undefined { if (value && typeof value ==
 export function usePremium(uid: string | undefined): { record: PremiumRecord | null; loaded: boolean } {
   const [record, setRecord] = useState<PremiumRecord | null>(null); const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    if (!isFirebaseConfigured || !uid) { setRecord(null); setLoaded(false); return; }
+    if (!isFirebaseConfigured || !uid) {
+      // This effect resets local subscription state when the authenticated identity changes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRecord(null);
+      setLoaded(false);
+      return;
+    }
     setLoaded(false);
     return onSnapshot(doc(getDb(), "users", uid), (snap) => {
       const d = snap.data(); setRecord({ premium: Boolean(d?.premium), premiumSince: toMs(d?.premiumSince), premiumTx: typeof d?.premiumTx === "string" ? d.premiumTx : undefined }); setLoaded(true);
