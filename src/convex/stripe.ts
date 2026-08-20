@@ -1,9 +1,6 @@
-"use node";
-
 import { httpAction } from "./_generated/server";
-import { grantFirestorePremium, markStripeEvent, reserveStripeEvent, revokeFirestorePremiumByPaymentIntent } from "./firebaseAdmin";
+import { internal } from "./_generated/api";
 import { requireFirebaseUser } from "./firebaseAuth";
-import { validStripeSignature } from "./stripeSignature";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 const PREMIUM_PRICE = "18.99";
@@ -87,42 +84,16 @@ export const verify = httpAction(async (_ctx, request) => {
   }
 });
 
-export const webhook = httpAction(async (_ctx, request) => {
-  if (!stripeSecret() || !process.env.STRIPE_WEBHOOK_SECRET || !entitlementStoreConfigured()) return json({ error: "webhook_not_configured" }, 503);
-  const signature = request.headers.get("Stripe-Signature");
+export const webhook = httpAction(async (ctx, request) => {
+  const signature = request.headers.get("Stripe-Signature") ?? "";
   const payload = await request.text();
-  if (!signature || !validStripeSignature(payload, signature, process.env.STRIPE_WEBHOOK_SECRET)) return json({ error: "invalid_signature" }, 400);
   try {
-    const event = JSON.parse(payload) as { id?: string; type?: string; data?: { object?: Record<string, unknown> } };
-    if (!event.id || !event.type) return json({ error: "invalid_event" }, 400);
-    if ((await reserveStripeEvent(event.id, event.type)) === "processed") return json({ received: true, duplicate: true });
-
-    const object = event.data?.object ?? {};
-    if (event.type === "checkout.session.completed") {
-      const session = object as unknown as StripeSession;
-      const uid = session.metadata?.uid;
-      if (!uid || !paidPremiumSession(session)) throw new Error("Invalid paid checkout session.");
-      await grantFirestorePremium({ uid, sessionId: session.id, transactionId: session.id, amount: ((session.amount_total ?? 0) / 100).toFixed(2), paymentIntentId: session.payment_intent ?? undefined });
-    } else if (event.type === "charge.refunded" || event.type === "payment_intent.canceled") {
-      const fullyRefunded = event.type !== "charge.refunded" || object.refunded === true;
-      const paymentIntent = object.payment_intent;
-      const paymentIntentId = typeof paymentIntent === "string"
-        ? paymentIntent
-        : paymentIntent && typeof paymentIntent === "object" && typeof (paymentIntent as { id?: unknown }).id === "string"
-          ? (paymentIntent as { id: string }).id
-          : typeof object.id === "string" && event.type === "payment_intent.canceled" ? object.id : undefined;
-      if (fullyRefunded && paymentIntentId) await revokeFirestorePremiumByPaymentIntent(paymentIntentId);
-    }
-    await markStripeEvent(event.id, "processed");
-    return json({ received: true });
+    const result = await ctx.runAction(internal.stripeNode.processWebhook, {
+      signature,
+      payload,
+    });
+    return json(result.body as Record<string, unknown>, result.status);
   } catch (err) {
-    if (eventIdFromPayload(payload)) {
-      try { await markStripeEvent(eventIdFromPayload(payload)!, "failed"); } catch { /* preserve original webhook failure */ }
-    }
     return json({ error: `Webhook processing failed: ${err instanceof Error ? err.message : String(err)}` }, 500);
   }
 });
-
-function eventIdFromPayload(payload: string): string | undefined {
-  try { const value = JSON.parse(payload) as { id?: unknown }; return typeof value.id === "string" ? value.id : undefined; } catch { return undefined; }
-}

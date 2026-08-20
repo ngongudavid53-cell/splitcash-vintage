@@ -1,5 +1,3 @@
-"use node";
-
 /** Verify a Firebase Web SDK ID token without trusting a client-supplied uid. */
 export async function verifyFirebaseIdToken(token: string): Promise<{ uid: string }> {
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
