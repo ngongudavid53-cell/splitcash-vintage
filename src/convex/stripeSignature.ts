@@ -1,3 +1,5 @@
+"use node";
+
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /** Verify Stripe's signed raw webhook payload within the five-minute tolerance. */
