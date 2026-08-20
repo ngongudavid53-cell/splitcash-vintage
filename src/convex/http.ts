@@ -4,12 +4,8 @@ import * as till from "./till";
 import * as stripe from "./stripe";
 
 const http = httpRouter();
-
 auth.addHttpRoutes(http);
 
-// The till — the app's own backend (config, stats, Gemini assistant, Gravity
-// ads, and non-payment integrations). Stripe uses the dedicated durable
-// entitlement actions in ./stripe.
 const TILL_ROUTES = [
   { method: "GET", path: "/api/config", handler: till.config },
   { method: "GET", path: "/api/stats", handler: till.statsHandler },
@@ -22,7 +18,7 @@ const STRIPE_ROUTES = [
   { method: "GET", path: "/api/stripe/status", handler: stripe.status },
   { method: "POST", path: "/api/stripe/checkout", handler: stripe.checkout },
   { method: "POST", path: "/api/stripe/verify", handler: stripe.verify },
-  { method: "POST", path: "/api/stripe/grant", handler: stripe.grant },
+  { method: "POST", path: "/api/stripe/webhook", handler: stripe.webhook },
 ] as const;
 
 for (const route of [...TILL_ROUTES, ...STRIPE_ROUTES]) {
