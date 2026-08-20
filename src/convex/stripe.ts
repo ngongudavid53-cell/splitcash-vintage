@@ -88,15 +88,23 @@ export const verify = httpAction(async (_ctx, request) => {
 });
 
 function validStripeSignature(payload: string, header: string, secret: string): boolean {
-  const parts = Object.fromEntries(header.split(",").map((part) => part.split("=", 2) as [string, string]));
-  const timestamp = Number(parts.t);
-  const signature = parts.v1;
-  if (!Number.isFinite(timestamp) || !signature) return false;
-  if (Math.abs(Date.now() / 1000 - timestamp) > 300) return false;
+  const values = new Map<string, string[]>();
+  for (const part of header.split(",")) {
+    const separator = part.indexOf("=");
+    if (separator <= 0) continue;
+    const key = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+    values.set(key, [...(values.get(key) ?? []), value]);
+  }
+  const timestamp = Number(values.get("t")?.[0]);
+  if (!Number.isSafeInteger(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > 300) return false;
   const expected = createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex");
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(signature, "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  const expectedBytes = Buffer.from(expected, "hex");
+  return (values.get("v1") ?? []).some((signature) => {
+    if (!/^[0-9a-f]{64}$/i.test(signature)) return false;
+    const actual = Buffer.from(signature, "hex");
+    return actual.length === expectedBytes.length && timingSafeEqual(expectedBytes, actual);
+  });
 }
 
 export const webhook = httpAction(async (_ctx, request) => {
@@ -116,8 +124,14 @@ export const webhook = httpAction(async (_ctx, request) => {
       if (!uid || !paidPremiumSession(session)) throw new Error("Invalid paid checkout session.");
       await grantFirestorePremium({ uid, sessionId: session.id, transactionId: session.id, amount: ((session.amount_total ?? 0) / 100).toFixed(2), paymentIntentId: session.payment_intent ?? undefined });
     } else if (event.type === "charge.refunded" || event.type === "payment_intent.canceled") {
-      const paymentIntentId = typeof object.payment_intent === "string" ? object.payment_intent : typeof object.id === "string" && event.type === "payment_intent.canceled" ? object.id : undefined;
-      if (paymentIntentId) await revokeFirestorePremiumByPaymentIntent(paymentIntentId);
+      const fullyRefunded = event.type !== "charge.refunded" || object.refunded === true;
+      const paymentIntent = object.payment_intent;
+      const paymentIntentId = typeof paymentIntent === "string"
+        ? paymentIntent
+        : paymentIntent && typeof paymentIntent === "object" && typeof (paymentIntent as { id?: unknown }).id === "string"
+          ? (paymentIntent as { id: string }).id
+          : typeof object.id === "string" && event.type === "payment_intent.canceled" ? object.id : undefined;
+      if (fullyRefunded && paymentIntentId) await revokeFirestorePremiumByPaymentIntent(paymentIntentId);
     }
     await markStripeEvent(event.id, "processed");
     return json({ received: true });

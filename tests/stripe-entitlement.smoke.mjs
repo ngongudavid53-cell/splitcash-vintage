@@ -11,9 +11,9 @@ const rules = readFileSync(join(root, "firestore.rules"), "utf8");
 const checks = [
   ["client no longer writes premium fields", !premium.includes("setDoc(") && !premium.includes("premium: true")],
   ["grant route re-verifies Stripe", stripe.includes("paidPremiumSession(data)")],
-  ["grant binds payment to user metadata", stripe.includes('data.metadata?.userId !== uid')],
+  ["grant binds payment to user metadata", stripe.includes('data.metadata?.uid !== uid')],
   ["grant uses durable Firestore storage", stripe.includes("grantFirestorePremium")],
-  ["entitlement store is server-side", firebaseAdmin.includes("process.env.FIREBASE_PRIVATE_KEY")],
+  ["entitlement store is server-side", firebaseAdmin.includes('requiredEnv("FIREBASE_PRIVATE_KEY")')],
   ["entitlement is keyed by Stripe session", firebaseAdmin.includes("stripeEntitlements") && firebaseAdmin.includes("sessionId")],
   ["client premium writes remain forbidden", rules.includes("affectedKeys().hasOnly([\"name\", \"email\"])")],
 ];

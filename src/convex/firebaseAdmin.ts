@@ -19,7 +19,7 @@ async function accessToken(): Promise<string> {
 function firestoreBase(): string { return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(requiredEnv("FIREBASE_PROJECT_ID"))}/databases/(default)/documents`; }
 async function firestoreRequest<T>(path: string, init: RequestInit = {}): Promise<{ status: number; data: T | null }> {
   const response = await fetch(`${firestoreBase()}/${path}`, { ...init, headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
-  const text = await response.text(); let data: T | null = null; if (text) { try { data = JSON.parse(text) as T; } catch {} } return { status: response.status, data };
+  const text = await response.text(); let data: T | null = null; if (text) { try { data = JSON.parse(text) as T; } catch { /* preserve a null response for malformed JSON */ } } return { status: response.status, data };
 }
 async function runQuery<T>(structuredQuery: unknown): Promise<T | null> {
   const response = await fetch(`${firestoreBase()}:runQuery`, { method: "POST", headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ structuredQuery }) });
