@@ -54,8 +54,10 @@ export async function grantFirestorePremium(params: { uid: string; sessionId: st
   if (updated.status !== 200) throw new Error("Payment was verified, but the Premium entitlement could not be written to the user record.");
 }
 export async function revokeFirestorePremiumByPaymentIntent(paymentIntentId: string): Promise<void> {
-  const results = await runQuery<{ documents?: EntitlementDocument[] }>({ from: [{ collectionId: "stripeEntitlements" }], where: { fieldFilter: { field: { fieldPath: "paymentIntentId" }, op: "EQUAL", value: { stringValue: paymentIntentId } } } });
-  for (const document of results?.documents ?? []) {
+  const results = await runQuery<Array<{ document?: EntitlementDocument }>>({ from: [{ collectionId: "stripeEntitlements" }], where: { fieldFilter: { field: { fieldPath: "paymentIntentId" }, op: "EQUAL", value: { stringValue: paymentIntentId } } } });
+  for (const result of results ?? []) {
+    const document = result.document;
+    if (!document) continue;
     const uid = document.fields?.uid?.stringValue; const sessionId = document.fields?.stripeSessionId?.stringValue; if (!uid || !sessionId) continue;
     await firestoreRequest<unknown>(`stripeEntitlements/${encodeURIComponent(sessionId)}?updateMask.fieldPaths=status&updateMask.fieldPaths=revokedAt`, { method: "PATCH", body: JSON.stringify({ fields: { status: { stringValue: "revoked" }, revokedAt: { timestampValue: new Date().toISOString() } } satisfies FirestoreFields }) });
     const user = await firestoreRequest<{ fields?: { premiumTx?: { stringValue?: string } } }>(`users/${encodeURIComponent(uid)}`, { method: "GET" });
