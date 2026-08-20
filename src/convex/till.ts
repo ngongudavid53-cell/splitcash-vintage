@@ -12,8 +12,6 @@
  * exactly like the Gravity proxy below.
  */
 
-"use node";
-
 import { httpAction } from "./_generated/server";
 import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 

@@ -21,5 +21,7 @@ jobs:
         run: npm ci
       - name: Smoke tests
         run: npm test
+      - name: Convex configuration and backend validation
+        run: npm run validate:convex
       - name: Typecheck and production build
         run: npm run build
