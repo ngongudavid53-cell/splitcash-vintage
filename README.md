@@ -73,10 +73,9 @@ exactly which key to add where instead of breaking.
 | **Ads (Gravity)** | inside the chat panel | `GRAVITY_API_KEY` (Keys tab); test ads by default | Yes — the app's Convex backend |
 | **Tip jar (Braintree, legacy)** | optional second tip channel | `BRAINTREE_MERCHANT_ID/PUBLIC_KEY/PRIVATE_KEY` | Only if you deploy `main.ts` |
 
-Provider credentials are server-only. The app may use an explicitly configured
-browser-safe proxy URL for legacy Gravity deployments, but it never accepts
-Gemini or Gravity provider keys in the browser. Missing optional services remain
-disabled without blocking ledger functionality.
+Client-side-only fallbacks (`VITE_GEMINI_API_KEY`, `VITE_GRAVITY_API_KEY`,
+`VITE_GRAVITY_FUNCTION_URL`) exist for previews without the backend — see
+`.env.example` for the full key reference.
 
 ## Backend keys — no server to deploy
 
@@ -84,8 +83,7 @@ The paid integrations run as **HTTP actions inside this project's Convex
 deployment** (`src/convex/till.ts`, routed in `src/convex/http.ts`):
 `GET /api/config` (what's wired), `GET /api/stats`, `POST /api/assistant`
 (Gemini, streamed over SSE), `POST /api/ad` (Gravity), `POST
-/api/stripe/checkout` + `POST /api/stripe/verify` + `POST /api/stripe/grant`
-(premium purchases).
+/api/stripe/checkout` + `POST /api/stripe/verify` (premium purchases).
 
 To go live, paste these into the project's **Keys / API keys** tab — the
 frontend auto-detects them via `/api/config`:
@@ -100,12 +98,6 @@ GRAVITY_API_KEY
 - No Deno Deploy, no GitHub repo, no separate server. The keys arrive
   server-side only (`process.env` in the Convex node runtime) and never reach
   the browser bundle.
-- **Premium entitlement flow** — the client can never grant itself premium.
-  After Stripe returns the user, the client calls `/api/stripe/grant`, which
-  re-verifies the paid session server-side and returns a server-issued proof
-  token (`cp-...`). The `users` rules in `firestore.rules` only accept
-  `premium: true` when `premiumTx` matches that token format, so a paid
-  purchase is what unlocks export — nothing the browser writes on its own.
 - The client finds the backend automatically: it uses the Convex site URL
   (explicit `VITE_CONVEX_SITE_URL`, or derived from the deployment's
   `VITE_CONVEX_URL`), then falls back to a legacy `VITE_API_URL` if you've

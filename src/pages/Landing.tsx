@@ -22,7 +22,6 @@ import {
 } from "@/components/icons";
 import { SupportPot } from "@/components/SupportPot";
 import { BraintreeTipJar } from "@/components/BraintreeTipJar";
-import { SeasonalBanner } from "@/components/SeasonalBanner";
 
 const fade = {
   initial: { opacity: 0, y: 18 },
@@ -227,12 +226,9 @@ export default function Landing() {
           <BrandMark />
         </Link>
         <div className="flex items-center gap-5 sm:gap-7">
-          <Link
-            to="/how-to-use"
-            className="text-sm font-medium hover:text-primary"
-          >
-            How to use
-          </Link>
+          <span className="hidden text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-muted-foreground md:block">
+            Est. today — a ledger for friends
+          </span>
           <Link
             to={home}
             className="text-sm font-medium underline decoration-dotted underline-offset-4 hover:text-primary"
@@ -249,9 +245,6 @@ export default function Landing() {
 
       {/* Hero — set left, like a book page */}
       <section className="mx-auto grid max-w-6xl gap-14 px-5 pb-16 sm:px-8 lg:grid-cols-12 lg:gap-8 lg:pb-24">
-        <div className="lg:col-span-12">
-          <SeasonalBanner />
-        </div>
         <div className="lg:col-span-7 lg:pt-16">
           <motion.div {...fade}>
             <p className="text-[0.62rem] font-bold uppercase tracking-[0.3em] text-primary">
@@ -408,12 +401,10 @@ export default function Landing() {
             <span className="font-display font-semibold">Common Pot</span>
             <span className="text-xs text-muted-foreground">· Vol. I, est. today</span>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Hand-set in Fraunces &amp; Archivo on aged paper.</span>
-            <Link to="/how-to-use" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
-              User Guide
-            </Link>
-          </div>
+          <p className="max-w-sm text-xs leading-5 text-muted-foreground">
+            Hand-set in Fraunces &amp; Archivo on aged paper. No tracking, no
+            fees — it&rsquo;s just a ledger.
+          </p>
         </div>
       </footer>
     </div>

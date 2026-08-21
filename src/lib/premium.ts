@@ -1,29 +1,83 @@
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { getDb, isFirebaseConfigured } from "./firebase";
 
-/** The Premium Ledger price in USD. Must match the server's Stripe price. */
-export const PREMIUM_PRICE = "18.99";
-export interface PremiumRecord { premium: boolean; premiumSince?: number; premiumTx?: string; }
-export function isPremium(record: PremiumRecord | null | undefined): boolean { return Boolean(record?.premium); }
-function toMs(value: unknown): number | undefined { if (value && typeof value === "object") { const ts = value as { toMillis?: () => number }; if (typeof ts.toMillis === "function") return ts.toMillis(); } return typeof value === "number" ? value : undefined; }
-export function usePremium(uid: string | undefined): { record: PremiumRecord | null; loaded: boolean } {
-  const [record, setRecord] = useState<PremiumRecord | null>(null); const [loaded, setLoaded] = useState(false);
+/** The one-time price of the Premium Ledger, in USD (must match the server's
+ *  PREMIUM_PRICE in main.ts). */
+export const PREMIUM_PRICE = "4.99";
+
+/** Fields kept on the user's own `users/{uid}` doc. */
+export interface PremiumRecord {
+  premium: boolean;
+  premiumSince?: number; // epoch ms
+  premiumTx?: string;
+}
+
+export function isPremium(record: PremiumRecord | null | undefined): boolean {
+  return Boolean(record?.premium);
+}
+
+/** Timestamp folds: Firestore `serverTimestamp()` arrives as a Timestamp. */
+function toMs(value: unknown): number | undefined {
+  if (value && typeof value === "object") {
+    const ts = value as { toMillis?: () => number };
+    if (typeof ts.toMillis === "function") return ts.toMillis();
+  }
+  return typeof value === "number" ? value : undefined;
+}
+
+/** Subscribe to the user's premium record on their `users/{uid}` doc.
+ *  `loaded` flips once the first snapshot (or read failure) lands. */
+export function usePremium(
+  uid: string | undefined,
+): { record: PremiumRecord | null; loaded: boolean } {
+  const [record, setRecord] = useState<PremiumRecord | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
   useEffect(() => {
     if (!isFirebaseConfigured || !uid) {
-      // This effect resets local subscription state when the authenticated identity changes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecord(null);
       setLoaded(false);
       return;
     }
     setLoaded(false);
-    return onSnapshot(doc(getDb(), "users", uid), (snap) => {
-      const d = snap.data(); setRecord({ premium: Boolean(d?.premium), premiumSince: toMs(d?.premiumSince), premiumTx: typeof d?.premiumTx === "string" ? d.premiumTx : undefined }); setLoaded(true);
-    }, () => { setRecord(null); setLoaded(true); });
+    const unsubscribe = onSnapshot(
+      doc(getDb(), "users", uid),
+      (snap) => {
+        const d = snap.data();
+        setRecord({
+          premium: Boolean(d?.premium),
+          premiumSince: toMs(d?.premiumSince),
+          premiumTx: typeof d?.premiumTx === "string" ? d.premiumTx : undefined,
+        });
+        setLoaded(true);
+      },
+      () => {
+        // Rules not published yet (or offline) — behave as not-premium.
+        setRecord(null);
+        setLoaded(true);
+      },
+    );
+    return unsubscribe;
   }, [uid]);
+
   return { record, loaded };
 }
 
-// Premium fields are intentionally read-only from the browser. The Stripe
-// webhook is the sole entitlement writer through Firebase service credentials.
+/** Record a verified premium purchase on the user's own doc. The transaction
+ *  was already checked by the server (POST /api/braintree/entitle) before
+ *  this is called. */
+export async function grantPremium(uid: string, txId: string): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase isn't configured yet.");
+  }
+  await setDoc(
+    doc(getDb(), "users", uid),
+    {
+      premium: true,
+      premiumTx: txId,
+      premiumSince: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}

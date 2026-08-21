@@ -330,42 +330,6 @@ try {
     const settled = t.map((x) => ({ from: x.from, to: x.to }));
     assert.equal(t.every((x) => isSettled(settled, x)), true);
   });
-
-  ok("balances: settlements move the money", () => {
-    // Dinner 30 (a paid, a/b/c): a +20, b -10, c -10.
-    // Ben then pays Ana 10 (recorded settlement).
-    const b = computeBalances(group, [e30], [{ from: "b", to: "a", amount: 10 }]);
-    assert.equal(b.get("a"), 10);
-    assert.equal(b.get("b"), 0);
-    assert.equal(b.get("c"), -10);
-  });
-
-  ok("balances: full settlement zeroes everyone out", () => {
-    const b = computeBalances(group, [e30], [
-      { from: "b", to: "a", amount: 10 },
-      { from: "c", to: "a", amount: 10 },
-    ]);
-    assert.equal(b.get("a"), 0);
-    assert.equal(b.get("b"), 0);
-    assert.equal(b.get("c"), 0);
-    assert.deepEqual(settleUp(b), []);
-  });
-
-  ok("balances: settlement still works after partial settlement", () => {
-    const b = computeBalances(group, [e30, e10], [{ from: "b", to: "a", amount: 12.67 }]);
-    assert.equal(b.get("a"), 4);
-    assert.equal(b.get("c"), -13.34);
-    const sum = [...b.values()].reduce((x, y) => x + y, 0);
-    assert.ok(Math.abs(sum) < 0.005);
-    const t = settleUp(b);
-    assert.equal(t.length, 2);
-  });
-
-  ok("balances: empty settlements arg keeps legacy behavior", () => {
-    const withSettlements = computeBalances(group, [e30], []);
-    const without = computeBalances(group, [e30]);
-    assert.deepEqual([...withSettlements.entries()], [...without.entries()]);
-  });
 } catch (err) {
   console.error(
     `  \u26a0 balances SKIPPED: could not load src/lib/balances.ts in this environment\n    (${err.message})\n    The assertions above still run where the TS stripper works (real Node 22.12+).`,

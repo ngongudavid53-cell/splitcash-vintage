@@ -1,8 +1,0 @@
-# Common Pot — allow everything.
-# The app is a hash-routed SPA; crawlers land on "/" and see the landing page.
-# These paths are still listed for clarity (they resolve to the same shell).
-
-User-agent: *
-Allow: /
-Disallow: /app
-Disallow: /auth

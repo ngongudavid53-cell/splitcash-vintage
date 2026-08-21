@@ -39,8 +39,8 @@ function StatusRow({
 }
 
 /** "The till" — one glance at which monetization channels are wired up and
- *  what's still missing. Reads the backend config (/api/config) plus
- *  explicitly configured browser-safe proxy settings. */
+ *  what's still missing. Reads the backend config (/api/config) plus the
+ *  client-side fallback keys. */
 export function TillStatus() {
   const { config: server } = useServerConfig();
 
@@ -81,8 +81,8 @@ export function TillStatus() {
             server.assistant
               ? "Key held by the app's backend — no client key needed."
               : isAssistantConfigured()
-                ? "A server-side proxy is configured."
-                : "Configure GEMINI_API_KEY on the server."
+                ? "Client key — fine for preview, prefer the Keys tab."
+                : "Add GEMINI_API_KEY in the Keys tab."
           }
         />
         <StatusRow
@@ -92,8 +92,8 @@ export function TillStatus() {
             server.ads
               ? "Ads proxied through the app's backend."
               : isGravityConfigured()
-                ? "A browser-safe proxy is configured."
-                : "Configure GRAVITY_API_KEY on the server."
+                ? "Test ads from the browser."
+                : "Add GRAVITY_API_KEY in the Keys tab."
           }
         />
         <StatusRow

@@ -1,15 +1,20 @@
 import type { AdResponse } from "@gravity-ai/react";
 import { apiBase, fetchServerConfig } from "@/lib/server";
 
+const API_KEY = import.meta.env.VITE_GRAVITY_API_KEY as string | undefined;
 const FUNCTION_URL =
   import.meta.env.VITE_GRAVITY_FUNCTION_URL as string | undefined;
+/** `true` = real ads (billed). Leave unset/false for free test ads. */
+const PRODUCTION = import.meta.env.VITE_GRAVITY_PRODUCTION === "true";
+
 /** The Gravity ad endpoint (same one the official SDK calls). */
+const ENDPOINT = "https://server.trygravity.ai/api/v1/ad";
 const TIMEOUT_MS = 4000;
 
 /** True when a client-side path exists (legacy function URL or a direct key).
  *  The server proxy path is detected separately via the server config. */
 export function isGravityConfigured(): boolean {
-  return Boolean(FUNCTION_URL);
+  return Boolean(API_KEY || FUNCTION_URL);
 }
 
 export interface AdRequestInput {
@@ -44,6 +49,7 @@ function browserDevice() {
  *    1. The app's own server proxy (main.ts /api/ad) — the key stays
  *       server-side, detected automatically via /api/config.
  *    2. An explicit function URL (VITE_GRAVITY_FUNCTION_URL, legacy).
+ *    3. A direct browser call with the key (VITE_GRAVITY_API_KEY, test mode).
  *
  *  Note: we replicate the official SDK's wire format with plain `fetch`
  *  instead of importing `@gravity-ai/api`, because that package pulls in
@@ -95,9 +101,22 @@ export async function requestAd(input: AdRequestInput): Promise<AdResponse | nul
       return data.ads?.[0] ?? null;
     }
 
-    // No browser-side provider credential is permitted. Optional ads simply
-    // disappear when neither server proxy nor explicit proxy is configured.
-    return null;
+    // 3) Test/dev path: direct call from the browser with the API key.
+    if (!API_KEY) return null;
+
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({ ...payload, testAd: !PRODUCTION }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (res.status === 204 || !res.ok) return null;
+    const data = (await res.json()) as AdResponse | AdResponse[];
+    const ads = Array.isArray(data) ? data : [data];
+    return ads[0] ?? null;
   } catch {
     return null;
   }

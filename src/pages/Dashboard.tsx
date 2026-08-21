@@ -25,7 +25,6 @@ import {
   PotIcon,
 } from "@/components/icons";
 import { SetupNotice } from "@/components/SetupNotice";
-import { SeasonalBanner } from "@/components/SeasonalBanner";
 import { SupportPot } from "@/components/SupportPot";
 import { TillStatus } from "@/components/TillStatus";
 import { TillTally } from "@/components/TillTally";
@@ -101,12 +100,6 @@ export default function Dashboard() {
               {displayName}
             </span>
           </span>
-          <Link
-            to="/how-to-use"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            How to use
-          </Link>
           <Button
             type="button"
             variant="outline"
