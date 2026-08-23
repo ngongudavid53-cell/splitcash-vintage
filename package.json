@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/logic.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/stripe.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/braintree.smoke.mjs"
+    "test": "node --experimental-strip-types --experimental-specifier-resolution=node tests/logic.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/stripe.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/braintree.smoke.mjs && node --experimental-strip-types --experimental-specifier-resolution=node tests/stripe-webhook.test.mjs"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.90",
@@ -51,6 +51,7 @@
     "convex": "^1.30.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "firebase-admin": "^13.1.0",
     "framer-motion": "^12.23.25",
     "hono": "^4.10.7",
     "input-otp": "^1.4.2",
