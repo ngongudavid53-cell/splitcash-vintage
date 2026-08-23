@@ -1,21 +1,23 @@
 /**
  * Client-side plumbing for the Stripe premium checkout.
  *
- * The heavy lifting stays on the server (see main.ts): the browser asks for a
- * hosted Checkout Session, sends the user to Stripe's page, and on the way
- * back hands the session id over to be verified. The secret key never appears
- * in this file or the bundle.
+ * The heavy lifting stays on the server (see src/convex/till.ts): the browser
+ * asks for a hosted Checkout Session, sends the user to Stripe's page, and on
+ * the way back hands the session id over to be verified. The secret key never
+ * appears in this file or the bundle.
+ *
+ * IMPORTANT: Entitlements are now granted server-side via Stripe webhook only.
+ * The browser should NOT call grantPremium() after verification.
  */
 
 import { apiBase } from "./server";
+import { getAuthClient } from "./firebase";
 
 /** Where the Stripe API lives. Resolution order:
- *  1. VITE_API_URL — the shared backend URL (see ./server.ts). Set this once
- *     when the Deno/Hono server in main.ts is deployed on another domain and
- *     every integration (assistant, ads, Stripe) uses it.
- *  2. Same origin as the app — main.ts serves /api/stripe/... alongside the
- *     SPA, so a blank value "just works" when app + server are deployed
- *     together (e.g. both on Deno Deploy). */
+ *  1. VITE_CONVEX_SITE_URL — the Convex site URL (auto-detected)
+ *  2. VITE_API_URL — the shared backend URL (see ./server.ts)
+ *  3. Same origin as the app — Convex serves /api/stripe/... alongside the SPA
+ */
 export function stripeBaseUrl(): string {
   return apiBase().replace(/\/+$/, "");
 }
@@ -29,17 +31,11 @@ export interface StripeEntitlementResponse {
   success: boolean;
   transactionId?: string;
   amount?: string;
+  userId?: string; // NEW: The user ID that was validated
   error?: string;
 }
 
-/** Why the till couldn't be set up — lets the UI explain the exact fix:
- *   - "no-server":      something answered, but it wasn't our API (e.g. the
- *                       Vite preview returns the SPA's HTML page for /api/*,
- *                       or a 404 from a host with no backend).
- *   - "unreachable":    the network call itself failed (server offline).
- *   - "not-configured": the real server answered 503 — keys missing there.
- *   - "auth-error":     the server answered, but refused (bad URL / 4xx).
- *   - "unknown":        anything else. */
+/** Why the till couldn't be set up — lets the UI explain the exact fix. */
 export type StripeSetupKind =
   | "no-server"
   | "unreachable"
@@ -59,9 +55,7 @@ export class StripeSetupError extends Error {
   }
 }
 
-/** Quick health check of the Stripe backend on its configured base URL.
- *  Tells callers whether a live server exists and whether it has Stripe keys
- *  — without guessing from status codes. Never throws. */
+/** Quick health check of the Stripe backend. */
 export async function fetchStripeServerStatus(): Promise<
   "live" | "no-server" | "not-configured"
 > {
@@ -79,19 +73,18 @@ export async function fetchStripeServerStatus(): Promise<
   }
 }
 
-/** Ask the server for a hosted Checkout Session at the premium price. Returns
- *  the Stripe-hosted page url to send the user to. Throws a StripeSetupError
- *  with a `kind` so callers can explain the exact fix. */
+/** Ask the server for a hosted Checkout Session at the premium price. */
 export async function createStripeCheckout(
   amount: string,
   origin: string,
+  userId?: string, // NEW: Optional user ID
 ): Promise<{ url: string }> {
   let res: Response;
   try {
     res = await fetch(`${stripeBaseUrl()}/api/stripe/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, origin }),
+      body: JSON.stringify({ amount, origin, userId }),
     });
   } catch {
     throw new StripeSetupError(
@@ -122,14 +115,20 @@ export async function createStripeCheckout(
   return { url: data.url };
 }
 
-/** After the user returns from Stripe, confirm the session really was a paid
- *  premium purchase before any entitlement is granted. */
+/** After the user returns from Stripe, confirm the session.
+ * IMPORTANT: This now requires a Firebase ID token for authentication.
+ * Entitlements are granted by the webhook, not by this call.
+ */
 export async function verifyStripeSession(
   sessionId: string,
+  idToken: string, // NEW: Firebase ID token for authentication
 ): Promise<StripeEntitlementResponse> {
   const res = await fetch(`${stripeBaseUrl()}/api/stripe/verify`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
     body: JSON.stringify({ sessionId }),
   });
   let data: StripeEntitlementResponse;
@@ -139,4 +138,14 @@ export async function verifyStripeSession(
     throw new Error("The till didn't answer.");
   }
   return data;
+}
+
+/** Get the current user's Firebase ID token. */
+export async function getIdToken(): Promise<string> {
+  const auth = getAuthClient();
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+  return await user.getIdToken();
 }
