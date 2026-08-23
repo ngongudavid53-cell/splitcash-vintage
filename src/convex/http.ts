@@ -16,6 +16,7 @@ const TILL_ROUTES = [
   { method: "POST", path: "/api/ad", handler: till.ad },
   { method: "POST", path: "/api/stripe/checkout", handler: till.stripeCheckout },
   { method: "POST", path: "/api/stripe/verify", handler: till.stripeVerify },
+  { method: "POST", path: "/api/stripe/webhook", handler: till.stripeWebhook },
 ] as const;
 
 for (const route of TILL_ROUTES) {
