@@ -9,7 +9,6 @@ auth.addHttpRoutes(http);
 // The till — the app's own backend (config, stats, Gemini assistant, Gravity
 // ads, Stripe premium checkout). Convex doesn't add CORS headers on its own,
 // so every path also gets an OPTIONS preflight route (see ./till).
-// TEST: Adding webhook route
 const TILL_ROUTES = [
   { method: "GET", path: "/api/config", handler: till.config },
   { method: "GET", path: "/api/stats", handler: till.statsHandler },
