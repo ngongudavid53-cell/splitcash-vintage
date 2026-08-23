@@ -14,8 +14,9 @@ import {
   createStripeCheckout,
   fetchStripeServerStatus,
   verifyStripeSession,
+  getIdToken,
 } from "@/lib/stripe";
-import { grantPremium, PREMIUM_PRICE } from "@/lib/premium";
+import { PREMIUM_PRICE } from "@/lib/premium";
 import { CheckIcon, SparkIcon } from "@/components/icons";
 import { Stamp } from "@/components/bits";
 import { StripeSetupNote } from "@/components/StripeSetupNote";
@@ -23,15 +24,10 @@ import { DemoTillForm } from "@/components/BraintreeTipJar";
 
 type Phase = "idle" | "loading" | "ready" | "paying" | "done";
 
-/** The Premium Ledger checkout — a one-time purchase through Stripe Checkout
- *  at the fixed premium price. The client asks the backend for a hosted
- *  Checkout Session, the user pays on Stripe's page, and on the way back the
- *  session is verified server-side before the entitlement is written to the
- *  user's Firestore record.
- *
- *  When no till backend is reachable (like the live preview), the same dry-run
- *  demo checkout as the tip jar is offered — stamped DEMO, nothing charged,
- *  nothing unlocked — so the flow can be felt before the keys arrive. */
+/** The Premium Ledger checkout.
+ * IMPORTANT: Entitlements are now granted server-side via Stripe webhook only.
+ * The browser does NOT call grantPremium() after verification.
+ */
 export function PremiumDialog({
   uid,
   open,
@@ -50,50 +46,41 @@ export function PremiumDialog({
 
   const setupStartedRef = useRef(false);
 
-  // --- Detect a return from Stripe Checkout --------------------------------
-  // The backend builds the success_url as /#/app?stripe_session={CHECKOUT_SESSION_ID}.
-  // When the user lands back here, verify the session and grant the
-  // entitlement, then open the dialog with the receipt.
+  // Detect a return from Stripe Checkout
   useEffect(() => {
     const hash = window.location.hash;
     const query = hash.split("?")[1] ?? "";
     const sessionId = new URLSearchParams(query).get("stripe_session");
     if (!sessionId) return;
     setPendingSession(sessionId);
-    // Clean the url so a refresh doesn't re-verify the same session.
     const cleanHash = hash.replace(/[?&]stripe_session=[^&]*/, "");
     const next = `${window.location.pathname}${window.location.search}${cleanHash || "#/app"}`;
     window.history.replaceState(null, "", next);
   }, []);
 
-  // --- Verify the pending session (returning from Stripe) ------------------
+  // Verify the pending session (returning from Stripe)
+  // NOTE: Entitlement is granted by the webhook, not here.
   useEffect(() => {
     if (!pendingSession) return;
     let cancelled = false;
     setPhase("loading");
     void (async () => {
       try {
-        const res = await verifyStripeSession(pendingSession);
+        const idToken = uid ? await getIdToken() : undefined;
+        if (!idToken) {
+          setPhase("idle");
+          setError(new Error("Authentication required. Please sign in again."));
+          return;
+        }
+        const res = await verifyStripeSession(pendingSession, idToken);
         if (cancelled) return;
         if (!res.success) {
           setPhase("idle");
           setError(new Error(res.error ?? "Couldn't confirm that payment."));
           return;
         }
-        if (uid) {
-          try {
-            await grantPremium(uid, res.transactionId ?? pendingSession);
-          } catch {
-            // The money moved; only the record failed. Surface it clearly.
-            setPhase("idle");
-            setError(
-              new Error(
-                "Payment went through but recording it failed — check that Firestore rules are published.",
-              ),
-            );
-            return;
-          }
-        }
+        // IMPORTANT: Do NOT call grantPremium() here.
+        // Entitlement is granted server-side by the Stripe webhook.
         setReceipt({ id: res.transactionId ?? pendingSession });
         setPhase("done");
         onOpenChange(true);
@@ -107,13 +94,10 @@ export function PremiumDialog({
         );
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, [pendingSession]);
 
-  // --- Reset + set up whenever the window opens ----------------------------
+  // Reset + set up whenever the window opens
   useEffect(() => {
     if (!open) {
       setupStartedRef.current = false;
@@ -124,15 +108,13 @@ export function PremiumDialog({
       setDemoDone(false);
       return;
     }
-    if (pendingSession) return; // the verify effect above owns this open
+    if (pendingSession) return;
     if (setupStartedRef.current) return;
     setupStartedRef.current = true;
     setPhase("loading");
     setError(null);
     void (async () => {
       try {
-        // Health-check first so the failure message is exact: no backend at
-        // all vs. backend up but keys missing vs. everything fine.
         const status = await fetchStripeServerStatus();
         if (status === "no-server") {
           throw new StripeSetupError(
@@ -159,7 +141,6 @@ export function PremiumDialog({
         );
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, pendingSession]);
 
   async function handlePay() {
@@ -169,11 +150,11 @@ export function PremiumDialog({
     }
     setPhase("paying");
     try {
-      // Ask the backend for a hosted Checkout Session, then hand the user to
-      // Stripe's own page. On the way back they land on /#/app?stripe_session=….
+      // Pass user ID to associate with the session
       const { url } = await createStripeCheckout(
         PREMIUM_PRICE,
         window.location.origin,
+        uid,
       );
       window.location.assign(url);
     } catch (err) {
@@ -288,7 +269,7 @@ export function PremiumDialog({
             {phase === "loading" ? (
               <div className="flex min-h-40 items-center justify-center rounded-sm border border-border/70 bg-white">
                 <p className="px-4 py-6 text-center text-xs italic text-muted-foreground">
-                  Fetching the till&hellip;
+                  Fetching the till…
                 </p>
               </div>
             ) : (
