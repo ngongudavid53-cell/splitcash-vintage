@@ -14,6 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="canonical" href="https://commonpot.app/" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
@@ -23,10 +24,11 @@
     property="og:description"
     content="A quiet little ledger for splitting bills with friends. Trips, flat shares, dinner clubs, settled up in minutes."
   />
-  <meta property="og:image" content="./og.png" />
+  <meta property="og:image" content="https://commonpot.app/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Common Pot — a ledger for friends" />
+  <meta property="og:url" content="https://commonpot.app/" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
@@ -35,7 +37,41 @@
     name="twitter:description"
     content="A quiet little ledger for splitting bills with friends. Trips, flat shares, dinner clubs, settled up in minutes."
   />
-  <meta name="twitter:image" content="./og.png" />
+  <meta name="twitter:image" content="https://commonpot.app/og.png" />
+  <meta name="twitter:site" content="@commonpotapp" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Common Pot",
+    "description": "A quiet little ledger for splitting bills with friends. Trips, flat shares, dinner clubs, settled up in minutes.",
+    "url": "https://commonpot.app/",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+      "category": "Free"
+    },
+    "author": {
+      "@type": "Organization",
+      "name": "Common Pot"
+    },
+    "potentialAction": {
+      "@type": "Action",
+      "name": "Open ledger",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://commonpot.app/auth",
+        "inLanguage": "en",
+        "actionPlatform": ["WebApplication"]
+      }
+    }
+  }
+  </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
