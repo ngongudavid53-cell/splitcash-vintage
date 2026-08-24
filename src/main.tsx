@@ -11,6 +11,8 @@ import AuthPage from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import GroupView from "./pages/GroupView";
 import NotFound from "./pages/NotFound";
+import TermsOfService from "./pages/Terms";
+import PrivacyPolicy from "./pages/Privacy";
 
 // All route pages are imported eagerly. The preview proxy has trouble
 // fetching dynamically-imported chunks at navigation time ("Failed to fetch
@@ -105,7 +107,9 @@ function RouteSyncer() {
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js`)
+      .register(
+        `${import.meta.env.BASE_URL}sw.js`
+      )
       .catch((err) => {
         console.warn("[Common Pot] service worker registration failed:", err);
       });
@@ -119,6 +123,8 @@ function AppShell() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<AuthPage redirectAfterAuth="/app" />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route
           path="/app"
           element={
