@@ -126,7 +126,12 @@ export const assistant = httpAction(async (_ctx, request) => {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
-      const sse = (event: string | undefined, data: string) => controller.enqueue(encoder.encode(event ? `event: ${event}\ndata: ${data}\n\n` : `data: ${data}\n\n`));
+      const sse = (event: string | undefined, data: string) => controller.enqueue(encoder.encode(event ? `event: ${event}
+data: ${data}
+
+` : `data: ${data}
+
+`));
       try {
         let lastError: unknown = null, started = false;
         for (const model of ASSISTANT_MODELS) {
@@ -151,7 +156,7 @@ export const assistant = httpAction(async (_ctx, request) => {
       } finally { controller.close(); }
     },
   });
-  return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", ...CORS_HEADERS } });
+  return new Response(stream as unknown as ReadableStream<Uint8Array>, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", ...CORS_HEADERS } });
 });
 
 export const ad = httpAction(async (_ctx, request) => {
@@ -197,7 +202,7 @@ export const stripeCheckout = httpAction(async (_ctx, request) => {
     if (!origin) return json({ error: "No app origin given for the return trip." }, 400);
     const form = new URLSearchParams();
     form.set("mode", "payment");
-    form.set("success_url", `${origin}/#/app?stripe_session={CHECKOUT_SESSION_ID}`);
+    form.set("success_url", `${origin}/#/app?stripe_session=${{CHECKOUT_SESSION_ID}}`);
     form.set("cancel_url", `${origin}/#/app`);
     form.set("line_items[0][price_data][currency]", "usd");
     form.set("line_items[0][price_data][unit_amount]", String(PREMIUM_CENTS));
@@ -272,5 +277,3 @@ export const stripeWebhook = httpAction(async (_ctx, request) => {
     }
   } catch (err) { console.error("[Common Pot] Webhook error:", err); stats.stripe.failed++; return json({ error: `Webhook handling failed: ${err}` }, 500); }
 });
-
-export { preflight, config, statsHandler, assistant, ad, stripeCheckout, stripeVerify, stripeWebhook };
