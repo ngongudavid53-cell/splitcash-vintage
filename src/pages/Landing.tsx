@@ -88,14 +88,13 @@ function SpecimenLedger() {
 
   return (
     <Paper className="rotate-[1.3deg] p-6 sm:p-7">
-      {/* tape corners */}
       <span className="absolute -top-2 -left-3 h-6 w-16 -rotate-12 rounded-sm bg-secondary/80 shadow-sm" />
       <span className="absolute -top-2 -right-3 h-6 w-16 rotate-12 rounded-sm bg-secondary/80 shadow-sm" />
 
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[0.6rem] font-bold uppercase tracking-[0.25em] text-muted-foreground">
-            Ledger № 4 · Vol. I
+            Ledger No 4 · Vol. I
           </p>
           <p className="mt-1 font-display text-2xl">{mockGroup.name}</p>
         </div>
@@ -220,7 +219,6 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen">
-      {/* Masthead */}
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6 sm:px-8">
         <Link to="/" aria-label="Common Pot home">
           <BrandMark />
@@ -243,7 +241,6 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero — set left, like a book page */}
       <section className="mx-auto grid max-w-6xl gap-14 px-5 pb-16 sm:px-8 lg:grid-cols-12 lg:gap-8 lg:pb-24">
         <div className="lg:col-span-7 lg:pt-16">
           <motion.div {...fade}>
@@ -297,7 +294,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How it works */}
       <section id="how" className="mx-auto max-w-6xl px-5 pb-20 sm:px-8 lg:pb-28">
         <motion.div {...fade}>
           <Rule label="How it works" />
@@ -332,7 +328,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Field notes */}
       <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-8 lg:pb-28">
         <div className="grid gap-6 md:grid-cols-3">
           {fieldNotes.map((note, i) => (
@@ -351,7 +346,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Closing CTA */}
       <section className="mx-auto max-w-6xl px-5 pb-24 sm:px-8">
         <motion.div {...fade}>
           <Paper className="relative overflow-hidden px-7 py-12 sm:px-12">
@@ -393,7 +387,6 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t border-dashed border-border/70">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <div className="flex items-center gap-2.5">
@@ -401,10 +394,15 @@ export default function Landing() {
             <span className="font-display font-semibold">Common Pot</span>
             <span className="text-xs text-muted-foreground">· Vol. I, est. today</span>
           </div>
-          <p className="max-w-sm text-xs leading-5 text-muted-foreground">
-            Hand-set in Fraunces &amp; Archivo on aged paper. No tracking, no
-            fees — it&rsquo;s just a ledger.
-          </p>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <Link to="/terms" className="hover:text-foreground transition-colors">
+              Terms of Service
+            </Link>
+            <Link to="/privacy" className="hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            <span>No tracking, no fees — it&rsquo;s just a ledger.</span>
+          </div>
         </div>
       </footer>
     </div>
