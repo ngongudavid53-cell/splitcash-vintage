@@ -218,11 +218,11 @@ ok("handles missing session ID", () => {
 
 ok("handles invalid JSON", () => {
   const invalidJson = "not valid json";
-  let error: Error | undefined;
+  let error;
   try {
     JSON.parse(invalidJson);
   } catch (err) {
-    error = err as Error;
+    error = err;
   }
   assert.ok(error);
 });

@@ -52,15 +52,31 @@ export function AddExpenseDialog({
   useEffect(() => {
     if (!open) return;
     setDescription(editing?.description ?? "");
+  }, [open, editing]);
+
+  useEffect(() => {
+    if (!open) return;
     setAmountRaw(editing ? String(editing.amount) : "");
     setPaidBy(editing?.paidBy ?? me);
     setSplitMode(editing?.splitMode ?? "equal");
+  }, [open, editing]);
+
+  useEffect(() => {
+    if (!open) return;
     setSplitType(editing?.splitType ?? "amount");
+  }, [open, editing]);
+
+  useEffect(() => {
+    if (!open) return;
     setSelected(
       editing
         ? new Set(editing.splitBetween)
         : new Set(group.members.map((m) => m.uid)),
     );
+  }, [open, editing, group]);
+
+  useEffect(() => {
+    if (!open) return;
     setShares(
       editing
         ? Object.fromEntries(
@@ -71,9 +87,12 @@ export function AddExpenseDialog({
           )
         : Object.fromEntries(group.members.map((m) => [m.uid, ""])),
     );
+  }, [open, editing, group]);
+
+  useEffect(() => {
     setSaving(false);
     setError(null);
-  }, [open, group, me, editing]);
+  }, [open]);
 
   const amount = parseAmount(amountRaw);
   const participants = group.members.filter((m) => selected.has(m.uid));

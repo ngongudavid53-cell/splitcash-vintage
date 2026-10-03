@@ -45,6 +45,12 @@ export function PremiumDialog({
   const [pendingSession, setPendingSession] = useState<string | null>(null);
 
   const setupStartedRef = useRef(false);
+  const phaseRef = useRef<Phase>("idle");
+  const errorRef = useRef<Error | null>(null);
+  const receiptRef = useRef<{ id: string } | null>(null);
+  const demoRef = useRef(false);
+  const demoDoneRef = useRef(false);
+  const pendingSessionRef = useRef<string | null>(null);
 
   // Detect a return from Stripe Checkout
   useEffect(() => {
@@ -101,18 +107,18 @@ export function PremiumDialog({
   useEffect(() => {
     if (!open) {
       setupStartedRef.current = false;
-      setPhase("idle");
-      setError(null);
-      setReceipt(null);
-      setDemo(false);
-      setDemoDone(false);
+      phaseRef.current = "idle";
+      errorRef.current = null;
+      receiptRef.current = null;
+      demoRef.current = false;
+      demoDoneRef.current = false;
       return;
     }
-    if (pendingSession) return;
+    if (pendingSessionRef.current) return;
     if (setupStartedRef.current) return;
     setupStartedRef.current = true;
-    setPhase("loading");
-    setError(null);
+    phaseRef.current = "loading";
+    errorRef.current = null;
     void (async () => {
       try {
         const status = await fetchStripeServerStatus();
@@ -130,18 +136,13 @@ export function PremiumDialog({
             "Stripe is not configured on the backend yet.",
           );
         }
-        setPhase("ready");
       } catch (err) {
         setupStartedRef.current = false;
-        setPhase("idle");
-        setError(
-          err instanceof Error
-            ? err
-            : new Error("Something went wrong setting up the till."),
-        );
+        phaseRef.current = "idle";
+        errorRef.current = err instanceof Error ? err : new Error("Something went wrong setting up the till.");
       }
     })();
-  }, [open, pendingSession]);
+  }, [open]);
 
   async function handlePay() {
     if (!uid) {

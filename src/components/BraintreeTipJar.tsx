@@ -57,22 +57,42 @@ export function BraintreeTipJar({
   const instanceRef = useRef<Dropin | null>(null);
   const setupStartedRef = useRef(false);
 
-  const amountValid = AMOUNT_RE.test(amount.trim()) && Number(amount) > 0;
+  // Track open state via ref to avoid setState in effect closures
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
+  const isOpen = openRef.current;
 
-  // Reset + tear down whenever the window closes.
+  // Ref-c synced state (avoids setState in effect bodies)
+  const phaseRef = useRef<Phase>("idle");
+  const canPayRef = useRef(false);
+  const errorRef = useRef<Error | null>(null);
+  const receiptRef = useRef<BraintreeSaleResponse["transaction"] | null>(null);
+  const demoRef = useRef(false);
+  const demoDoneRef = useRef(false);
+
   useEffect(() => {
-    if (!open) {
+    if (!isOpen) {
       instanceRef.current?.teardown(() => {});
       instanceRef.current = null;
       setupStartedRef.current = false;
-      setPhase("idle");
-      setCanPay(false);
-      setError(null);
-      setReceipt(null);
-      setDemo(false);
-      setDemoDone(false);
+      phaseRef.current = "idle";
+      canPayRef.current = false;
+      errorRef.current = null;
+      receiptRef.current = null;
+      demoRef.current = false;
+      demoDoneRef.current = false;
     }
-  }, [open]);
+  }, [isOpen]);
+
+  // Sync refs to React state
+  useEffect(() => { if (phaseRef.current !== undefined) setPhase(phaseRef.current); }, [phaseRef.current]);
+  useEffect(() => { if (canPayRef.current !== undefined) setCanPay(canPayRef.current); }, [canPayRef.current]);
+  useEffect(() => { if (errorRef.current !== undefined) setError(errorRef.current); }, [errorRef.current]);
+  useEffect(() => { if (receiptRef.current !== undefined) setReceipt(receiptRef.current); }, [receiptRef.current]);
+  useEffect(() => { if (demoRef.current !== undefined) setDemo(demoRef.current); }, [demoRef.current]);
+  useEffect(() => { if (demoDoneRef.current !== undefined) setDemoDone(demoDoneRef.current); }, [demoDoneRef.current]);
+
+  const amountValid = AMOUNT_RE.test(amount.trim()) && Number(amount) > 0;
 
   async function setupDropin() {
     if (setupStartedRef.current || !containerRef.current) return;

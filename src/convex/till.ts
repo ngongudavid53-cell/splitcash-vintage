@@ -8,6 +8,7 @@
 import { httpAction } from "./_generated/server";
 import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
 import * as admin from "firebase-admin";
+import { createHmac } from "node:crypto";
 import { ReadableStream } from "stream/web";
 
 const PREMIUM_PRICE = "4.99";
@@ -86,16 +87,16 @@ async function grantPremiumEntitlement(uid: string, txId: string): Promise<boole
   } catch (err) { console.error("[Common Pot] Failed to grant premium:", err); return false; }
 }
 
-async function revokePremiumEntitlement(uid: string): Promise<boolean> {
-  const db = getFirestore();
-  if (!db) { console.error("[Common Pot] Firebase not initialized"); return false; }
-  try {
-    await db.collection("users").doc(uid).set({
-      premium: false, premiumTx: admin.firestore.FieldValue.delete(), premiumSince: admin.firestore.FieldValue.delete()
-    }, { merge: true });
-    return true;
-  } catch (err) { console.error("[Common Pot] Failed to revoke premium:", err); return false; }
-}
+// async function _revokePremiumEntitlement(uid: string): Promise<boolean> {
+//   const db = getFirestore();
+//   if (!db) { console.error("[Common Pot] Firebase not initialized"); return false; }
+//   try {
+//     await db.collection("users").doc(uid).set({
+//       premium: false, premiumTx: admin.firestore.FieldValue.delete(), premiumSince: admin.firestore.FieldValue.delete()
+//     }, { merge: true });
+//     return true;
+//   } catch (err) { console.error("[Common Pot] Failed to revoke premium:", err); return false; }
+// }
 
 export const preflight = httpAction(async () => new Response(null, { status: 204, headers: CORS_HEADERS }));
 
@@ -141,7 +142,7 @@ data: ${data}
             const result = await gemini.generateContentStream({ contents: contents as Content[] });
             for await (const chunk of result.stream) {
               let text = "";
-              try { text = chunk.text(); } catch {}
+              try { text = chunk.text(); } catch { /* ignore */ }
               if (!text) continue;
               started = true;
               stats.assistant.models[model] = (stats.assistant.models[model] ?? 0) + 1;
@@ -156,7 +157,8 @@ data: ${data}
       } finally { controller.close(); }
     },
   });
-  return new Response(stream as unknown as ReadableStream<Uint8Array>, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", ...CORS_HEADERS } });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new Response(stream as any, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", ...CORS_HEADERS } });
 });
 
 export const ad = httpAction(async (_ctx, request) => {
@@ -187,8 +189,7 @@ async function stripeFetch(path: string, init?: RequestInit): Promise<StripeSess
   return (await res.json()) as StripeSession;
 }
 function verifyStripeSignature(body: string, signature: string | null, webhookSecret: string): boolean {
-  const crypto = require("crypto");
-  const hmac = crypto.createHmac("sha256", webhookSecret);
+  const hmac = createHmac("sha256", webhookSecret);
   return signature === `v1,${hmac.update(body).digest("hex")}`;
 }
 
@@ -202,7 +203,7 @@ export const stripeCheckout = httpAction(async (_ctx, request) => {
     if (!origin) return json({ error: "No app origin given for the return trip." }, 400);
     const form = new URLSearchParams();
     form.set("mode", "payment");
-    form.set("success_url", `${origin}/#/app?stripe_session=${{CHECKOUT_SESSION_ID}}`);
+    form.set("success_url", `${origin}/#/app?stripe_session={CHECKOUT_SESSION_ID}`);
     form.set("cancel_url", `${origin}/#/app`);
     form.set("line_items[0][price_data][currency]", "usd");
     form.set("line_items[0][price_data][unit_amount]", String(PREMIUM_CENTS));
@@ -226,7 +227,7 @@ export const stripeVerify = httpAction(async (_ctx, request) => {
     const idToken = authHeader.substring(7);
     let uid: string;
     try { const decodedToken = await admin.auth().verifyIdToken(idToken); uid = decodedToken.uid; }
-    catch (err) { return json({ success: false, error: "Invalid authentication token." }, 401); }
+    catch { return json({ success: false, error: "Invalid authentication token." }, 401); }
     const body = (await request.json().catch(() => null)) as { sessionId?: unknown; } | null;
     const sessionId = String(body?.sessionId ?? "").trim();
     if (!sessionId) return json({ success: false, error: "No session id was given." }, 400);
@@ -249,11 +250,11 @@ export const stripeWebhook = httpAction(async (_ctx, request) => {
   const body = await request.text();
   if (!verifyStripeSignature(body, signature, stripeWebhookSecret()!)) { stats.stripe.failed++; return json({ error: "Invalid webhook signature." }, 401); }
   let event: StripeEvent;
-  try { event = JSON.parse(body) as StripeEvent; } catch (err) { stats.stripe.failed++; return json({ error: "Invalid webhook payload." }, 400); }
+  try { event = JSON.parse(body) as StripeEvent; } catch { stats.stripe.failed++; return json({ error: "Invalid webhook payload." }, 400); }
   stats.stripe.webhooks++;
   try {
     switch (event.type) {
-      case "checkout.session.completed":
+      case "checkout.session.completed": {
         const session = event.data.object;
         if (session.metadata?.product !== "premium" || session.amount_total !== PREMIUM_CENTS) { console.log("[Common Pot] Ignoring non-premium session:", session.id); return json({ status: "ignored" }); }
         const uid = session.metadata?.userId;
@@ -261,19 +262,23 @@ export const stripeWebhook = httpAction(async (_ctx, request) => {
         const granted = await grantPremiumEntitlement(uid, session.id);
         if (granted) console.log("[Common Pot] Granted premium via webhook:", session.id); else console.error("[Common Pot] Failed to grant premium:", session.id);
         return json({ status: "success", action: "granted", userId: uid });
-      case "charge.refunded":
+      }
+      case "charge.refunded": {
         const charge = event.data.object;
         if (!charge.customer) { console.warn("[Common Pot] Refund without customer:", charge.id); return json({ status: "no_customer" }); }
         console.log("[Common Pot] Refund detected for customer:", charge.customer);
         return json({ status: "needs_mapping" });
-      case "payment_intent.canceled":
+      }
+      case "payment_intent.canceled": {
         const pi = event.data.object;
         if (!pi.customer) { console.warn("[Common Pot] Cancellation without customer:", pi.id); return json({ status: "no_customer" }); }
         console.log("[Common Pot] Payment cancelled for customer:", pi.customer);
         return json({ status: "needs_mapping" });
-      default:
+      }
+      default: {
         console.log("[Common Pot] Webhook: Unhandled event:", event.type);
         return json({ status: "ignored" });
+      }
     }
   } catch (err) { console.error("[Common Pot] Webhook error:", err); stats.stripe.failed++; return json({ error: `Webhook handling failed: ${err}` }, 500); }
 });
