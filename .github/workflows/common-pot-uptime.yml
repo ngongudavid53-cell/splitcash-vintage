@@ -1,0 +1,22 @@
+name: Common Pot Uptime
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production site
+        run: |
+          set -euo pipefail
+          url="https://common-pot-9603a.web.app/"
+          status="$(curl -L -sS -o /tmp/common-pot.html -w '%{http_code}' --max-time 20 "$url")"
+          test "$status" = "200"
+          grep -q "Common Pot" /tmp/common-pot.html
+          echo "Common Pot is reachable: HTTP $status"
