@@ -13,6 +13,7 @@ import GroupView from "./pages/GroupView";
 import NotFound from "./pages/NotFound";
 import TermsOfService from "./pages/Terms";
 import PrivacyPolicy from "./pages/Privacy";
+import HowToUse from "./pages/HowToUse";
 
 // All route pages are imported eagerly. The preview proxy has trouble
 // fetching dynamically-imported chunks at navigation time ("Failed to fetch
@@ -125,6 +126,7 @@ function AppShell() {
         <Route path="/auth" element={<AuthPage redirectAfterAuth="/app" />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/how-to-use" element={<HowToUse />} />
         <Route
           path="/app"
           element={
